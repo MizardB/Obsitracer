@@ -39,6 +39,13 @@ export default class MemoriaTracker extends Plugin {
 
 		this.registerDomEvent(document, 'click', updateCursor);
 		this.registerDomEvent(document, 'keyup', updateCursor);
+		this.registerDomEvent(window, 'focus', updateCursor);
+
+		this.registerEvent(
+			this.app.workspace.on('active-leaf-change', () => {
+				updateCursor();
+			})
+		);
 
 		this.registerEvent(
 			this.app.workspace.on('editor-change', (editor: Editor, view: MarkdownView) => {
