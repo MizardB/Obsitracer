@@ -24,20 +24,22 @@ export default class MemoriaTracker extends Plugin {
 		// Cursor tracking
 		const updateCursor = () => {
 			const activeFile = this.app.workspace.getActiveFile();
-			if (!activeFile) return;
 
-			let line = 1;
-			let ch = 0;
+			if (activeFile) {
+				let line = 1;
+				let ch = 0;
 
-			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-			if (view && view.file && view.file.path === activeFile.path && view.editor) {
-				const pos = view.editor.getCursor();
-				line = pos.line + 1;
-				ch = pos.ch;
+				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (view && view.file && view.file.path === activeFile.path && view.editor) {
+					const pos = view.editor.getCursor();
+					line = pos.line + 1;
+					ch = pos.ch;
+				}
+
+				this.activeFocus = { file: activeFile.path, line, ch };
 			}
 
-			const newFocus = { file: activeFile.path, line, ch };
-			this.activeFocus = newFocus;
+			// Always flush vault identity, even without an active file
 			this.scheduleFocusUpdate();
 		};
 
@@ -48,6 +50,23 @@ export default class MemoriaTracker extends Plugin {
 		this.registerDomEvent(document, 'mousedown', scheduleUpdate);
 		this.registerDomEvent(document, 'keyup', scheduleUpdate);
 		this.registerDomEvent(window, 'focus', scheduleUpdate);
+		this.registerDomEvent(document.body, 'mouseenter', scheduleUpdate);
+
+		// Fallback: visibilitychange is more reliable on some Linux WMs
+		this.registerDomEvent(document, 'visibilitychange', () => {
+			if (!document.hidden) scheduleUpdate();
+		});
+
+		// Paracaídas de emergencia (Polling): 
+		// Para usuarios de Tiling WMs (i3, bspwm) o Alt+Tab donde el ratón no entra a la ventana
+		// ni se disparan clicks, validamos cada 2s si la ventana realmente tiene el foco del OS.
+		this.registerInterval(
+			window.setInterval(() => {
+				if (document.hasFocus()) {
+					scheduleUpdate();
+				}
+			}, 2000)
+		);
 
 		this.registerEvent(
 			this.app.workspace.on('active-leaf-change', () => {
@@ -112,7 +131,7 @@ export default class MemoriaTracker extends Plugin {
 				excerpt = content.length > 300 ? content.substring(0, 300) + '...' : content;
 				
 				if (op === 'modified') {
-					this.extractIABlocks(file.path, content);
+					this.extractIABlocks(file, content);
 				}
 			} catch(e) {}
 		}
@@ -121,14 +140,28 @@ export default class MemoriaTracker extends Plugin {
 		this.scheduleCrudUpdate();
 	}
 
-	private extractIABlocks(filePath: string, content: string) {
+	private extractIABlocks(file: TFile, content: string) {
 		const lines = content.split('\n');
 		const regex = /\/ia\(['"]([^'"]+)['"]\)/;
+		let hasMatch = false;
 		for (let i = 0; i < lines.length; i++) {
 			const m = lines[i].match(regex);
 			if (m && m.length > 1) {
-				this.pendingIABlocks.push({ file: filePath, line: i + 1, prompt: m[1] });
+				this.pendingIABlocks.push({ file: file.path, line: i + 1, prompt: m[1] });
+				hasMatch = true;
 			}
+		}
+
+		if (hasMatch) {
+			this.app.vault.process(file, (data) => {
+				const dataLines = data.split('\n');
+				for (let i = 0; i < dataLines.length; i++) {
+					if (regex.test(dataLines[i])) {
+						dataLines[i] = dataLines[i].replace(regex, '').trim();
+					}
+				}
+				return dataLines.join('\n');
+			}).catch(e => console.error(e));
 		}
 	}
 
