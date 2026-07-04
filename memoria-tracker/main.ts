@@ -4,17 +4,22 @@ import * as os from 'os';
 import * as path from 'path';
 
 export default class MemoriaTracker extends Plugin {
-	private debounceTimer: NodeJS.Timeout | null = null;
-	private vaultDiffPath: string;
+	private focusDebounceTimer: NodeJS.Timeout | null = null;
+	private crudDebounceTimer: NodeJS.Timeout | null = null;
+	private focusPath: string;
+	private crudMailboxPath: string;
+	private vaultName: string;
 	private pendingChanges: Map<string, any> = new Map();
 	private pendingIABlocks: any[] = [];
 	private activeFocus: any = null;
 
 	async onload() {
-		console.log('Cargando Memoria Tracker plugin (CRUD + Cursor)...');
+		console.log('Cargando Memoria Tracker plugin (Multi-Vault)...');
 		
-		const home = os.homedir();
-		this.vaultDiffPath = path.join(home, '.config', 'academico-it', 'vault_diff.json');
+		this.vaultName = this.app.vault.getName();
+		const baseDir = path.join(os.homedir(), '.config', 'obsidian-copilot');
+		this.focusPath = path.join(baseDir, 'active_focus.json');
+		this.crudMailboxPath = path.join(baseDir, 'vaults', `${this.vaultName}.json`);
 
 		// Cursor tracking
 		this.registerEvent(
@@ -22,7 +27,7 @@ export default class MemoriaTracker extends Plugin {
 				if (view && view.file) {
 					const pos = editor.getCursor();
 					this.activeFocus = { file: view.file.path, line: pos.line + 1, ch: pos.ch };
-					this.scheduleUpdate();
+					this.scheduleFocusUpdate();
 				}
 			})
 		);
@@ -36,7 +41,7 @@ export default class MemoriaTracker extends Plugin {
 					} else {
 						this.activeFocus = { file: file.path, line: 1, ch: 0 };
 					}
-					this.scheduleUpdate();
+					this.scheduleFocusUpdate();
 				}
 			})
 		);
@@ -53,7 +58,8 @@ export default class MemoriaTracker extends Plugin {
 
 	onunload() {
 		console.log('Descargando Memoria Tracker plugin...');
-		if (this.debounceTimer) clearTimeout(this.debounceTimer);
+		if (this.focusDebounceTimer) clearTimeout(this.focusDebounceTimer);
+		if (this.crudDebounceTimer) clearTimeout(this.crudDebounceTimer);
 	}
 
 	private async handleCrud(op: string, abstractFile: TAbstractFile) {
@@ -75,7 +81,7 @@ export default class MemoriaTracker extends Plugin {
 		}
 
 		this.pendingChanges.set(file.path, { op, path: file.path, excerpt });
-		this.scheduleUpdate();
+		this.scheduleCrudUpdate();
 	}
 
 	private extractIABlocks(filePath: string, content: string) {
@@ -98,18 +104,41 @@ export default class MemoriaTracker extends Plugin {
 		return false;
 	}
 
-	private scheduleUpdate() {
-		if (this.debounceTimer) clearTimeout(this.debounceTimer);
-		this.debounceTimer = setTimeout(() => this.flushToMailbox(), 500);
+	private scheduleFocusUpdate() {
+		if (this.focusDebounceTimer) clearTimeout(this.focusDebounceTimer);
+		this.focusDebounceTimer = setTimeout(() => this.flushFocus(), 100);
 	}
 
-	private flushToMailbox() {
+	private scheduleCrudUpdate() {
+		if (this.crudDebounceTimer) clearTimeout(this.crudDebounceTimer);
+		this.crudDebounceTimer = setTimeout(() => this.flushCrud(), 500);
+	}
+
+	private flushFocus() {
 		try {
-			let data = { ts: new Date().toISOString(), vault: '', changes: [] as any[], ia_blocks: [] as any[], activeFocus: null as any };
+			if (!this.activeFocus) return;
 			
-			if (fs.existsSync(this.vaultDiffPath)) {
+			const payload = {
+				ts: new Date().toISOString(),
+				vault: this.vaultName,
+				vaultPath: (this.app.vault.adapter as any).basePath || '',
+				focus: this.activeFocus
+			};
+			
+			fs.mkdirSync(path.dirname(this.focusPath), { recursive: true });
+			fs.writeFileSync(this.focusPath, JSON.stringify(payload, null, 2), 'utf8');
+		} catch (e) {
+			console.error('Error actualizando focus:', e);
+		}
+	}
+
+	private flushCrud() {
+		try {
+			let data = { ts: new Date().toISOString(), vault: '', changes: [] as any[], ia_blocks: [] as any[] };
+			
+			if (fs.existsSync(this.crudMailboxPath)) {
 				try {
-					data = JSON.parse(fs.readFileSync(this.vaultDiffPath, 'utf8'));
+					data = JSON.parse(fs.readFileSync(this.crudMailboxPath, 'utf8'));
 				} catch (e) {}
 			}
 
@@ -126,18 +155,17 @@ export default class MemoriaTracker extends Plugin {
 				ts: new Date().toISOString(),
 				vault: (this.app.vault.adapter as any).basePath || '',
 				changes: mergedChanges,
-				ia_blocks: mergedBlocks,
-				activeFocus: this.activeFocus || data.activeFocus
+				ia_blocks: mergedBlocks
 			};
 
-			fs.mkdirSync(path.dirname(this.vaultDiffPath), { recursive: true });
-			fs.writeFileSync(this.vaultDiffPath, JSON.stringify(payload, null, 2), 'utf8');
+			fs.mkdirSync(path.dirname(this.crudMailboxPath), { recursive: true });
+			fs.writeFileSync(this.crudMailboxPath, JSON.stringify(payload, null, 2), 'utf8');
 
 			// Clear pending
 			this.pendingChanges.clear();
 			this.pendingIABlocks = [];
 		} catch (err) {
-			console.error('Error escribiendo al buzón:', err);
+			console.error('Error escribiendo al buzón CRUD:', err);
 		}
 	}
 }

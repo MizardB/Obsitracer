@@ -1,6 +1,6 @@
 OBSIDIAN_VAULT ?=
 
-.PHONY: build install
+.PHONY: build install install-hook
 
 build:
 	@echo "Construyendo memoria-tracker..."
@@ -22,3 +22,11 @@ install: build
 	rm -rf "$$PLUGIN_DIR"; \
 	ln -s "$(CURDIR)/memoria-tracker" "$$PLUGIN_DIR"; \
 	echo "✅ Plugin de Memoria-OS vinculado exitosamente."
+
+install-hook:
+	@echo "Configurando el hook de Memoria-OS en Antigravity..."
+	@mkdir -p ~/.gemini/config
+	@if [ ! -f ~/.gemini/config/hooks.json ]; then echo '{}' > ~/.gemini/config/hooks.json; fi
+	@jq '.["inject-vault-diff"] = {"PreInvocation": [{"type": "command", "command": "bash $(CURDIR)/hook/inject_vault_diff.sh"}]}' ~/.gemini/config/hooks.json > ~/.gemini/config/hooks_tmp.json
+	@mv ~/.gemini/config/hooks_tmp.json ~/.gemini/config/hooks.json
+	@echo "✅ Hook instalado. Antigravity ahora usará el script en $(CURDIR)/hook/inject_vault_diff.sh"
