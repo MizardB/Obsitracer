@@ -1,6 +1,6 @@
 OBSIDIAN_VAULT ?=
 
-.PHONY: build install install-hook
+.PHONY: build install install-hook uninstall
 
 build:
 	@echo "Construyendo memoria-tracker..."
@@ -22,6 +22,28 @@ install: build
 	rm -rf "$$PLUGIN_DIR"; \
 	ln -s "$(CURDIR)/memoria-tracker" "$$PLUGIN_DIR"; \
 	echo "✅ Plugin de Memoria-OS vinculado exitosamente."
+
+uninstall:
+	@if [ -z "$(OBSIDIAN_VAULT)" ]; then \
+		read -p "Introduce la ruta absoluta de tu Vault de Obsidian: " VAULT_PATH; \
+		if [ -z "$$VAULT_PATH" ]; then echo "Error: La ruta no puede estar vacía"; exit 1; fi; \
+	else \
+		VAULT_PATH="$(OBSIDIAN_VAULT)"; \
+	fi; \
+	PLUGIN_DIR="$$VAULT_PATH/.obsidian/plugins/memoria-tracker"; \
+	if [ -L "$$PLUGIN_DIR" ] || [ -d "$$PLUGIN_DIR" ]; then \
+		rm -rf "$$PLUGIN_DIR"; \
+		echo "🗑️  Symlink del plugin eliminado de $$VAULT_PATH"; \
+	else \
+		echo "⚠️  No se encontró el plugin en $$VAULT_PATH"; \
+	fi; \
+	VAULT_NAME=$$(basename "$$VAULT_PATH"); \
+	BUZON_FILE=~/.config/obsidian-copilot/vaults/$$VAULT_NAME.json; \
+	if [ -f "$$BUZON_FILE" ]; then \
+		rm -f "$$BUZON_FILE"; \
+		echo "🧹 Buzón residual $$VAULT_NAME.json eliminado."; \
+	fi; \
+	echo "✅ Desinstalación completa en el Vault $$VAULT_NAME."
 
 install-hook:
 	@echo "Configurando el hook de Memoria-OS en Antigravity..."
