@@ -22,6 +22,24 @@ export default class MemoriaTracker extends Plugin {
 		this.crudMailboxPath = path.join(baseDir, 'vaults', `${this.vaultName}.json`);
 
 		// Cursor tracking
+		const updateCursor = () => {
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (view && view.file && view.editor) {
+				const pos = view.editor.getCursor();
+				const newFocus = { file: view.file.path, line: pos.line + 1, ch: pos.ch };
+				if (!this.activeFocus || 
+					this.activeFocus.file !== newFocus.file || 
+					this.activeFocus.line !== newFocus.line || 
+					this.activeFocus.ch !== newFocus.ch) {
+					this.activeFocus = newFocus;
+					this.scheduleFocusUpdate();
+				}
+			}
+		};
+
+		this.registerDomEvent(document, 'click', updateCursor);
+		this.registerDomEvent(document, 'keyup', updateCursor);
+
 		this.registerEvent(
 			this.app.workspace.on('editor-change', (editor: Editor, view: MarkdownView) => {
 				if (view && view.file) {
@@ -53,6 +71,10 @@ export default class MemoriaTracker extends Plugin {
 		this.registerEvent(this.app.vault.on('rename', (file: TAbstractFile, oldPath: string) => {
 			this.pendingChanges.set(oldPath, { op: 'deleted', path: oldPath });
 			this.handleCrud('created', file);
+			if (this.activeFocus && this.activeFocus.file === oldPath) {
+				this.activeFocus.file = file.path;
+				this.scheduleFocusUpdate();
+			}
 		}));
 	}
 
