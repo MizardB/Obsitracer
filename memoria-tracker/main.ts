@@ -23,24 +23,35 @@ export default class MemoriaTracker extends Plugin {
 
 		// Cursor tracking
 		const updateCursor = () => {
+			const activeFile = this.app.workspace.getActiveFile();
+			if (!activeFile) return;
+
+			let line = 1;
+			let ch = 0;
+
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-			if (view && view.file && view.editor) {
+			if (view && view.file && view.file.path === activeFile.path && view.editor) {
 				const pos = view.editor.getCursor();
-				const newFocus = { file: view.file.path, line: pos.line + 1, ch: pos.ch };
-				this.activeFocus = newFocus;
-				this.scheduleFocusUpdate();
+				line = pos.line + 1;
+				ch = pos.ch;
 			}
+
+			const newFocus = { file: activeFile.path, line, ch };
+			this.activeFocus = newFocus;
+			this.scheduleFocusUpdate();
 		};
 
-		this.registerDomEvent(document, 'click', updateCursor);
-		this.registerDomEvent(document, 'keyup', updateCursor);
-		this.registerDomEvent(window, 'focus', () => {
+		const scheduleUpdate = () => {
 			setTimeout(updateCursor, 100);
-		});
+		};
+
+		this.registerDomEvent(document, 'mousedown', scheduleUpdate);
+		this.registerDomEvent(document, 'keyup', scheduleUpdate);
+		this.registerDomEvent(window, 'focus', scheduleUpdate);
 
 		this.registerEvent(
 			this.app.workspace.on('active-leaf-change', () => {
-				setTimeout(updateCursor, 100);
+				scheduleUpdate();
 			})
 		);
 
