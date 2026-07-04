@@ -22,31 +22,25 @@ export default class MemoriaTracker extends Plugin {
 		this.crudMailboxPath = path.join(baseDir, 'vaults', `${this.vaultName}.json`);
 
 		// Cursor tracking
-		const updateCursor = (force = false) => {
+		const updateCursor = () => {
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 			if (view && view.file && view.editor) {
 				const pos = view.editor.getCursor();
 				const newFocus = { file: view.file.path, line: pos.line + 1, ch: pos.ch };
-				if (force ||
-					!this.activeFocus || 
-					this.activeFocus.file !== newFocus.file || 
-					this.activeFocus.line !== newFocus.line || 
-					this.activeFocus.ch !== newFocus.ch) {
-					this.activeFocus = newFocus;
-					this.scheduleFocusUpdate();
-				}
+				this.activeFocus = newFocus;
+				this.scheduleFocusUpdate();
 			}
 		};
 
 		this.registerDomEvent(document, 'click', updateCursor);
 		this.registerDomEvent(document, 'keyup', updateCursor);
 		this.registerDomEvent(window, 'focus', () => {
-			setTimeout(() => updateCursor(true), 100);
+			setTimeout(updateCursor, 100);
 		});
 
 		this.registerEvent(
 			this.app.workspace.on('active-leaf-change', () => {
-				setTimeout(() => updateCursor(true), 100);
+				setTimeout(updateCursor, 100);
 			})
 		);
 
