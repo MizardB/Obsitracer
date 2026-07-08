@@ -59,3 +59,8 @@ install-hook:
 	@jq '."inject-vault-diff" = {"PreInvocation": [{"type": "command", "command": "bash $(CURDIR)/hook/inject_vault_diff.sh"}]}' ~/.gemini/config/hooks.json > ~/.gemini/config/hooks_tmp.json
 	@mv ~/.gemini/config/hooks_tmp.json ~/.gemini/config/hooks.json
 	@echo "✅ Hook instalado. Antigravity ahora usará el script en $(CURDIR)/hook/inject_vault_diff.sh"
+	@echo "Configurando la skill de Obsitracer en Antigravity..."
+	@mkdir -p ~/.gemini/skills/obsitracer-operator
+	@ln -sf $(CURDIR)/skills/obsitracer-operator/SKILL.md ~/.gemini/skills/obsitracer-operator/SKILL.md
+	@echo "✅ Skill obsitracer-operator vinculada exitosamente en ~/.gemini/skills/."
+
