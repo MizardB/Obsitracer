@@ -3,7 +3,9 @@ BASE_DIR="$HOME/.config/obsitracer"
 SILENCE='{"injectSteps":[]}'
 
 # 1. Resolución de Atención Dinámica (Tmux Window Local)
-TARGET_VAULT=$(tmux show-option -wqv @obsitracer_target 2>/dev/null)
+# Especificamos -t "${TMUX_PANE:-.}" para que tmux identifique el panel correcto en subprocesos
+TARGET_VAULT=$(tmux show-option -t "${TMUX_PANE:-.}" -qv @obsitracer_target 2>/dev/null)
+
 
 # 2. Silencio si no hay objetivo
 if [ -z "$TARGET_VAULT" ]; then
