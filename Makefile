@@ -14,12 +14,14 @@ install: build
 		VAULT_PATH="$(OBSIDIAN_VAULT)"; \
 	fi; \
 	PLUGIN_DIR="$$VAULT_PATH/.obsidian/plugins/obsitracer"; \
+	LEGACY_DIR="$$VAULT_PATH/.obsidian/plugins/memoria-tracker"; \
 	if [ ! -d "$$VAULT_PATH/.obsidian/plugins" ]; then \
 		echo "Error: No se encontró .obsidian/plugins en $$VAULT_PATH. ¿Estás seguro que es un Vault válido?"; \
 		exit 1; \
 	fi; \
 	echo "Instalando symlink en $$PLUGIN_DIR..."; \
 	rm -rf "$$PLUGIN_DIR"; \
+	rm -rf "$$LEGACY_DIR"; \
 	ln -s "$(CURDIR)/obsitracer" "$$PLUGIN_DIR"; \
 	echo "✅ Obsitracer vinculado exitosamente."
 
@@ -31,11 +33,16 @@ uninstall:
 		VAULT_PATH="$(OBSIDIAN_VAULT)"; \
 	fi; \
 	PLUGIN_DIR="$$VAULT_PATH/.obsidian/plugins/obsitracer"; \
+	LEGACY_DIR="$$VAULT_PATH/.obsidian/plugins/memoria-tracker"; \
 	if [ -L "$$PLUGIN_DIR" ] || [ -d "$$PLUGIN_DIR" ]; then \
 		rm -rf "$$PLUGIN_DIR"; \
 		echo "🗑️  Symlink del plugin eliminado de $$VAULT_PATH"; \
 	else \
 		echo "⚠️  No se encontró el plugin en $$VAULT_PATH"; \
+	fi; \
+	if [ -L "$$LEGACY_DIR" ] || [ -d "$$LEGACY_DIR" ]; then \
+		rm -rf "$$LEGACY_DIR"; \
+		echo "🗑️  Symlink legacy (memoria-tracker) eliminado."; \
 	fi; \
 	VAULT_NAME=$$(basename "$$VAULT_PATH"); \
 	BUZON_FILE=~/.config/obsitracer/vaults/$$VAULT_NAME.json; \
