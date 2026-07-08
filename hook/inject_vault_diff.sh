@@ -16,6 +16,20 @@ if [ -z "$VAULT_NAME" ] || [ "$VAULT_NAME" == "null" ]; then
     exit 0
 fi
 
+# ==============================================================================
+# ATENCIÓN SELECTIVA (PUNTO 3)
+# Filtramos si la variable de entorno $OBSITRACER_VAULTS está definida en esta sesión.
+# Ejemplo: export OBSITRACER_VAULTS="Academico,Memoria_Vault"
+# ==============================================================================
+if [ -n "$OBSITRACER_VAULTS" ]; then
+    # Usamos grep para buscar el nombre exacto del vault en la lista separada por comas/espacios
+    if ! echo "$OBSITRACER_VAULTS" | grep -Fqw "$VAULT_NAME"; then
+        # El vault no está en la whitelist de esta sesión -> silenciamos el hook
+        echo '{"injectSteps":[]}'
+        exit 0
+    fi
+fi
+
 BUZON="$BASE_DIR/vaults/${VAULT_NAME}.json"
 FOCUS_DATA=$(cat "$FOCUS_FILE")
 
