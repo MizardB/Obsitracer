@@ -1,50 +1,64 @@
 #!/usr/bin/env bash
 BASE_DIR="$HOME/.config/obsitracer"
-FOCUS_FILE="$BASE_DIR/active_focus.json"
+SILENCE='{"injectSteps":[]}'
 
-DEFAULT_MSG='{"injectSteps":[{"ephemeralMessage":"[OBSITRACER] Sistema inactivo o sin foco. No hay Vault activo actualmente."}]}'
+# 1. Resolución de Atención Dinámica (Tmux Window Local)
+TARGET_VAULT=$(tmux show-option -wqv @obsitracer_target 2>/dev/null)
 
-if [ ! -f "$FOCUS_FILE" ]; then
-    echo "$DEFAULT_MSG"
+# 2. Silencio si no hay objetivo
+if [ -z "$TARGET_VAULT" ]; then
+    echo "$SILENCE"
     exit 0
 fi
 
-# Extraer el nombre del Vault actual según el puntero de atención
-VAULT_NAME=$(jq -r '.vault' "$FOCUS_FILE" 2>/dev/null)
-if [ -z "$VAULT_NAME" ] || [ "$VAULT_NAME" == "null" ]; then
-    echo "$DEFAULT_MSG"
+VAULT_DIR="$BASE_DIR/vaults/$TARGET_VAULT"
+FOCUS_FILE="$VAULT_DIR/focus.json"
+CRUD_FILE="$VAULT_DIR/crud.json"
+LAST_FOCUS_FILE="$VAULT_DIR/last_injected_focus.txt"
+
+if [ ! -d "$VAULT_DIR" ] || [ ! -f "$FOCUS_FILE" ]; then
+    echo "$SILENCE"
     exit 0
 fi
 
-# ==============================================================================
-# ATENCIÓN SELECTIVA (PUNTO 3)
-# Filtramos si la variable de entorno $OBSITRACER_VAULTS está definida en esta sesión.
-# Ejemplo: export OBSITRACER_VAULTS="Academico,Memoria_Vault"
-# ==============================================================================
-if [ -n "$OBSITRACER_VAULTS" ]; then
-    # Usamos grep para buscar el nombre exacto del vault en la lista separada por comas/espacios
-    if ! echo "$OBSITRACER_VAULTS" | grep -Fqw "$VAULT_NAME"; then
-        # El vault no está en la whitelist de esta sesión -> silenciamos el hook
-        echo '{"injectSteps":[]}'
-        exit 0
+# 3. Protocolo Anti-Spam
+CURRENT_FOCUS_TS=$(jq -r '.ts' "$FOCUS_FILE" 2>/dev/null)
+LAST_FOCUS_TS=""
+if [ -f "$LAST_FOCUS_FILE" ]; then
+    LAST_FOCUS_TS=$(cat "$LAST_FOCUS_FILE")
+fi
+
+HAS_NEW_FOCUS=0
+if [ "$CURRENT_FOCUS_TS" != "$LAST_FOCUS_TS" ]; then
+    HAS_NEW_FOCUS=1
+fi
+
+HAS_CRUD=0
+PAYLOAD=""
+if [ -f "$CRUD_FILE" ]; then
+    CAMBIOS=$(jq -r '.changes | length' "$CRUD_FILE" 2>/dev/null || echo 0)
+    if [ "$CAMBIOS" -gt 0 ]; then
+        HAS_CRUD=1
+        PAYLOAD=$(cat "$CRUD_FILE")
+        # Vaciar el buzón
+        echo '{"changes":[], "ia_blocks":[]}' > "$CRUD_FILE"
     fi
 fi
 
-BUZON="$BASE_DIR/vaults/${VAULT_NAME}.json"
+if [ "$HAS_NEW_FOCUS" -eq 0 ] && [ "$HAS_CRUD" -eq 0 ]; then
+    # Silencio total si no te has movido y no hay cambios CRUD
+    echo "$SILENCE"
+    exit 0
+fi
+
+# Actualizar el tracker
+echo "$CURRENT_FOCUS_TS" > "$LAST_FOCUS_FILE"
+
 FOCUS_DATA=$(cat "$FOCUS_FILE")
 
-PAYLOAD=""
-if [ -f "$BUZON" ]; then
-    CAMBIOS=$(jq -r '.changes | length' "$BUZON" 2>/dev/null || echo 0)
-    if [ "$CAMBIOS" -gt 0 ]; then
-        PAYLOAD=$(cat "$BUZON")
-        # Vaciar el buzón CRUD del Vault activo
-        echo '{"changes":[], "ia_blocks":[]}' > "$BUZON"
-    fi
-fi
-
-if [ -n "$PAYLOAD" ]; then
-    CONTEXTO="[OBSITRACER: VAULT ACTIVO -> $VAULT_NAME]
+# Construir el contexto
+if [ "$HAS_CRUD" -eq 1 ]; then
+    CONTEXTO="[OBSITRACER: VAULT ACTIVO -> $TARGET_VAULT]
 
 📍 Foco Actual:
 $FOCUS_DATA
@@ -54,7 +68,7 @@ $PAYLOAD
 
 Asimila esta información estructural y ejecuta cualquier bloque /ia() de inmediato."
 else
-    CONTEXTO="[OBSITRACER: VAULT ACTIVO -> $VAULT_NAME]
+    CONTEXTO="[OBSITRACER: VAULT ACTIVO -> $TARGET_VAULT]
 
 📍 Foco Actual:
 $FOCUS_DATA

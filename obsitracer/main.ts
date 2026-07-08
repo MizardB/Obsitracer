@@ -19,8 +19,11 @@ export default class Obsitracer extends Plugin {
 		
 		this.vaultName = this.app.vault.getName();
 		const baseDir = path.join(os.homedir(), '.config', 'obsitracer');
-		this.focusPath = path.join(baseDir, 'active_focus.json');
-		this.crudMailboxPath = path.join(baseDir, 'vaults', `${this.vaultName}.json`);
+		const vaultDir = path.join(baseDir, 'vaults', this.vaultName);
+		
+		this.focusPath = path.join(vaultDir, 'focus.json');
+		this.crudMailboxPath = path.join(vaultDir, 'crud.json');
+
 
 		// Cursor tracking
 		const updateCursor = () => {
