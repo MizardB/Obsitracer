@@ -1,10 +1,25 @@
-# Obsidian Copilot (Memoria Tracker)
+# Obsitracer
 
-Este repositorio contiene la integración base para rastrear y reportar la actividad y contexto activo dentro del sistema de Obsidian hacia Antigravity (Memoria OS).
+Plugin de Obsidian + sistema de tracking cognitivo que alimenta a Antigravity con contexto en tiempo real sobre qué vault y nota tiene el usuario en foco.
 
-## Estructura Principal
-- `memoria-tracker/`: Plugin de Obsidian encargado de rastrear eventos episódicos y actualizar el contexto activo (`active_context.md`) de cada Vault.
-- Scripts de inicialización y utilidades compartidas.
+## Componentes
+- `obsitracer/` — Plugin de Obsidian: trackea cursor, foco y CRUD. Empuja el foco activo a tmux vía canal reactivo.
+- `hook/` — Hook de Antigravity (PreInvocation): inyecta el contexto del vault activo como mensaje efímero al agente.
+- `install.sh` / `Makefile` — Orquestador de instalación, build y vinculación de vaults.
 
 ## Instalación
-Consulta el archivo `install.sh` y el `Makefile` para rutinas de despliegue y empaquetado del plugin.
+```bash
+# Menú interactivo
+bash install.sh
+
+# O directamente:
+make install OBSIDIAN_VAULT="/ruta/a/tu/vault"
+make install-hook
+```
+
+## tmux
+El plugin empuja automáticamente el foco activo a tmux. Para verlo en tu statusline:
+```bash
+# En ~/.tmux.conf:
+set -g status-right '#{@obsitracer}'
+```

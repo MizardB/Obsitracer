@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-BASE_DIR="$HOME/.config/obsidian-copilot"
+BASE_DIR="$HOME/.config/obsitracer"
 FOCUS_FILE="$BASE_DIR/active_focus.json"
 
-DEFAULT_MSG='{"injectSteps":[{"ephemeralMessage":"[NOTIFICACIÓN DE MEMORIA-OS] Sistema inactivo o sin foco. No hay Vault activo actualmente."}]}'
+DEFAULT_MSG='{"injectSteps":[{"ephemeralMessage":"[OBSITRACER] Sistema inactivo o sin foco. No hay Vault activo actualmente."}]}'
 
 if [ ! -f "$FOCUS_FILE" ]; then
     echo "$DEFAULT_MSG"
@@ -30,7 +30,7 @@ if [ -f "$BUZON" ]; then
 fi
 
 if [ -n "$PAYLOAD" ]; then
-    CONTEXTO="[ATENCIÓN: VAULT ACTIVO -> $VAULT_NAME]
+    CONTEXTO="[OBSITRACER: VAULT ACTIVO -> $VAULT_NAME]
 
 📍 Foco Actual:
 $FOCUS_DATA
@@ -40,7 +40,7 @@ $PAYLOAD
 
 Asimila esta información estructural y ejecuta cualquier bloque /ia() de inmediato."
 else
-    CONTEXTO="[ATENCIÓN: VAULT ACTIVO -> $VAULT_NAME]
+    CONTEXTO="[OBSITRACER: VAULT ACTIVO -> $VAULT_NAME]
 
 📍 Foco Actual:
 $FOCUS_DATA

@@ -1,0 +1,10 @@
+{
+	"id": "obsitracer",
+	"name": "Obsitracer",
+	"version": "2.0.0",
+	"minAppVersion": "1.0.0",
+	"description": "Tracks active file, cursor position and vault focus for Obsitracer cognitive system.",
+	"author": "Manuel Aranda",
+	"authorUrl": "",
+	"isDesktopOnly": true
+}

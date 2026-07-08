@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 
 function menu() {
     clear
-    echo -e "${CYAN}[=== MEMORIA-OS ORCHESTRATOR ===]${NC}"
+    echo -e "${CYAN}[=== OBSITRACER ORCHESTRATOR ===]${NC}"
     echo "1) 🌐 Instalar/Actualizar Hook Global (Antigravity)"
     echo "2) 🔗 Vincular Plugin a un Vault"
     echo "3) 🗑️  Desvincular Plugin de un Vault (Limpiar)"
@@ -53,7 +53,7 @@ function menu() {
             menu
             ;;
         5)
-            echo -e "${GREEN}¡Nos vemos! El sistema cognitivo sigue corriendo.${NC}"
+            echo -e "${GREEN}¡Nos vemos! Obsitracer sigue corriendo.${NC}"
             exit 0
             ;;
         *)

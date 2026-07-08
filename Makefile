@@ -3,8 +3,8 @@ OBSIDIAN_VAULT ?=
 .PHONY: build install install-hook uninstall
 
 build:
-	@echo "Construyendo memoria-tracker..."
-	@cd memoria-tracker && npm install && npm run build
+	@echo "Construyendo Obsitracer..."
+	@cd obsitracer && npm install && npm run build
 
 install: build
 	@if [ -z "$(OBSIDIAN_VAULT)" ]; then \
@@ -13,15 +13,15 @@ install: build
 	else \
 		VAULT_PATH="$(OBSIDIAN_VAULT)"; \
 	fi; \
-	PLUGIN_DIR="$$VAULT_PATH/.obsidian/plugins/memoria-tracker"; \
+	PLUGIN_DIR="$$VAULT_PATH/.obsidian/plugins/obsitracer"; \
 	if [ ! -d "$$VAULT_PATH/.obsidian/plugins" ]; then \
 		echo "Error: No se encontró .obsidian/plugins en $$VAULT_PATH. ¿Estás seguro que es un Vault válido?"; \
 		exit 1; \
 	fi; \
 	echo "Instalando symlink en $$PLUGIN_DIR..."; \
 	rm -rf "$$PLUGIN_DIR"; \
-	ln -s "$(CURDIR)/memoria-tracker" "$$PLUGIN_DIR"; \
-	echo "✅ Plugin de Memoria-OS vinculado exitosamente."
+	ln -s "$(CURDIR)/obsitracer" "$$PLUGIN_DIR"; \
+	echo "✅ Obsitracer vinculado exitosamente."
 
 uninstall:
 	@if [ -z "$(OBSIDIAN_VAULT)" ]; then \
@@ -30,7 +30,7 @@ uninstall:
 	else \
 		VAULT_PATH="$(OBSIDIAN_VAULT)"; \
 	fi; \
-	PLUGIN_DIR="$$VAULT_PATH/.obsidian/plugins/memoria-tracker"; \
+	PLUGIN_DIR="$$VAULT_PATH/.obsidian/plugins/obsitracer"; \
 	if [ -L "$$PLUGIN_DIR" ] || [ -d "$$PLUGIN_DIR" ]; then \
 		rm -rf "$$PLUGIN_DIR"; \
 		echo "🗑️  Symlink del plugin eliminado de $$VAULT_PATH"; \
@@ -38,7 +38,7 @@ uninstall:
 		echo "⚠️  No se encontró el plugin en $$VAULT_PATH"; \
 	fi; \
 	VAULT_NAME=$$(basename "$$VAULT_PATH"); \
-	BUZON_FILE=~/.config/obsidian-copilot/vaults/$$VAULT_NAME.json; \
+	BUZON_FILE=~/.config/obsitracer/vaults/$$VAULT_NAME.json; \
 	if [ -f "$$BUZON_FILE" ]; then \
 		rm -f "$$BUZON_FILE"; \
 		echo "🧹 Buzón residual $$VAULT_NAME.json eliminado."; \
@@ -46,9 +46,9 @@ uninstall:
 	echo "✅ Desinstalación completa en el Vault $$VAULT_NAME."
 
 install-hook:
-	@echo "Configurando el hook de Memoria-OS en Antigravity..."
+	@echo "Configurando el hook de Obsitracer en Antigravity..."
 	@mkdir -p ~/.gemini/config
 	@if [ ! -f ~/.gemini/config/hooks.json ]; then echo '{}' > ~/.gemini/config/hooks.json; fi
-	@jq '.["inject-vault-diff"] = {"PreInvocation": [{"type": "command", "command": "bash $(CURDIR)/hook/inject_vault_diff.sh"}]}' ~/.gemini/config/hooks.json > ~/.gemini/config/hooks_tmp.json
+	@jq '."inject-vault-diff" = {"PreInvocation": [{"type": "command", "command": "bash $(CURDIR)/hook/inject_vault_diff.sh"}]}' ~/.gemini/config/hooks.json > ~/.gemini/config/hooks_tmp.json
 	@mv ~/.gemini/config/hooks_tmp.json ~/.gemini/config/hooks.json
 	@echo "✅ Hook instalado. Antigravity ahora usará el script en $(CURDIR)/hook/inject_vault_diff.sh"
