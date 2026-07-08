@@ -23,6 +23,9 @@ export default class Obsitracer extends Plugin {
 		
 		this.focusPath = path.join(vaultDir, 'focus.json');
 		this.crudMailboxPath = path.join(vaultDir, 'crud.json');
+		
+		this.registerVaultToList();
+
 
 
 		// Cursor tracking
@@ -250,4 +253,53 @@ export default class Obsitracer extends Plugin {
 			console.error('Error escribiendo al buzón CRUD:', err);
 		}
 	}
+
+	private registerVaultToList() {
+		try {
+			const baseDir = path.join(os.homedir(), '.config', 'obsitracer');
+			const listPath = path.join(baseDir, 'vaults.json');
+			const vaultPath = (this.app.vault.adapter as any).basePath || '';
+			
+			let list: { name: string; path: string }[] = [];
+			if (fs.existsSync(listPath)) {
+				try {
+					list = JSON.parse(fs.readFileSync(listPath, 'utf8'));
+				} catch (e) {}
+			}
+
+			// 1. Limpiar vaults que ya no existen físicamente en disco (mantenimiento)
+			list = list.filter(v => fs.existsSync(v.path));
+
+			// 2. Buscar si este vault ya existe en la lista (por path o por nombre)
+			const indexByPath = list.findIndex(v => v.path === vaultPath);
+			const indexByName = list.findIndex(v => v.name === this.vaultName);
+
+			let changed = false;
+
+			if (indexByPath !== -1) {
+				// Si el path coincide pero el nombre cambió (rename del vault), actualizamos el nombre
+				if (list[indexByPath].name !== this.vaultName) {
+					list[indexByPath].name = this.vaultName;
+					changed = true;
+				}
+			} else if (indexByName !== -1) {
+				// Si el nombre coincide pero la ruta cambió (se movió de carpeta), actualizamos la ruta
+				if (list[indexByName].path !== vaultPath) {
+					list[indexByName].path = vaultPath;
+					changed = true;
+				}
+			} else {
+				// Si es completamente nuevo, lo añadimos
+				list.push({ name: this.vaultName, path: vaultPath });
+				changed = true;
+			}
+
+			// Si hubo cambios o la lista se redujo por el filtro de existencia, guardamos
+			fs.mkdirSync(baseDir, { recursive: true });
+			fs.writeFileSync(listPath, JSON.stringify(list, null, 2), 'utf8');
+		} catch (e) {
+			console.error('Error registrando vault en la lista global:', e);
+		}
+	}
 }
+
