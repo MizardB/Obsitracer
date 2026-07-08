@@ -52,6 +52,10 @@ uninstall:
 	fi; \
 	echo "✅ Desinstalación completa en el Vault $$VAULT_NAME."
 
+install-tmux:
+	@chmod +x $(CURDIR)/hook/install_tmux_integration.sh
+	@bash $(CURDIR)/hook/install_tmux_integration.sh
+
 install-hook:
 	@echo "Configurando el hook de Obsitracer en Antigravity..."
 	@mkdir -p ~/.gemini/config
@@ -63,4 +67,6 @@ install-hook:
 	@mkdir -p ~/.gemini/skills/obsitracer-operator
 	@ln -sf $(CURDIR)/skills/obsitracer-operator/SKILL.md ~/.gemini/skills/obsitracer-operator/SKILL.md
 	@echo "✅ Skill obsitracer-operator vinculada exitosamente en ~/.gemini/skills/."
+	@$(MAKE) install-tmux
+
 
