@@ -13,7 +13,7 @@ if [ -d "$KANAGAWA_DIR" ]; then
     if ! grep -q 'elif \[ \$plugin = "obsitracer" \]; then' "$UKIYO_SCRIPT"; then
         echo "Inyectando plugin 'obsitracer' en ukiyo.sh..."
         # Insertar el bloque de configuración justo antes de la cláusula de 'weather'
-        sed -i '/elif \[ \$plugin = "weather" \]; then/i \    elif [ $plugin = "obsitracer" ]; then\n      IFS='\'' '\'' read -r -a colors <<<$(get_tmux_option "@ukiyo-obsitracer-colors" "accent bg_pane")\n      script="#($current_dir/obsitracer.sh)"\n' "$UKIYO_SCRIPT"
+        sed -i '/elif \[ \$plugin = "weather" \]; then/i \    elif [ $plugin = "obsitracer" ]; then\n      IFS='\'' '\'' read -r -a colors <<<$(get_tmux_option "@ukiyo-obsitracer-colors" "red bg_pane")\n      script="#($current_dir/obsitracer.sh)"\n' "$UKIYO_SCRIPT"
     fi
     
     # 2. Reemplazar obsitracer.sh para leer la variable de atención del pane activo con el icono de gafas
