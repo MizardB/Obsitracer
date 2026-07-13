@@ -2,51 +2,60 @@
 # hook/install_tmux_integration.sh
 set -euo pipefail
 
-KANAGAWA_DIR="$HOME/.tmux/plugins/tmux-kanagawa"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TMUX_SCRIPTS_DIR="$HOME/.tmux/scripts"
+TMUX_CONF="$HOME/.tmux.conf"
 STYLE_CONF="$HOME/.tmux/modules/style.conf"
+OBSITRACER_SCRIPT="$TMUX_SCRIPTS_DIR/obsitracer.sh"
 
-echo "⚙️ Configurando integración de Obsitracer en tmux..."
+echo "⚙️ Configurando integración de Obsitracer como Custom Plugin de Ukiyo..."
 
-# 1. Modificar ukiyo.sh para registrar el caso del plugin 'obsitracer'
-if [ -d "$KANAGAWA_DIR" ]; then
-    UKIYO_SCRIPT="$KANAGAWA_DIR/scripts/ukiyo.sh"
-    if ! grep -q 'elif \[ \$plugin = "obsitracer" \]; then' "$UKIYO_SCRIPT"; then
-        echo "Inyectando plugin 'obsitracer' en ukiyo.sh..."
-        # Insertar el bloque de configuración justo antes de la cláusula de 'weather'
-        sed -i '/elif \[ \$plugin = "weather" \]; then/i \    elif [ $plugin = "obsitracer" ]; then\n      IFS='\'' '\'' read -r -a colors <<<$(get_tmux_option "@ukiyo-obsitracer-colors" "red bg_pane")\n      script="#($current_dir/obsitracer.sh)"\n' "$UKIYO_SCRIPT"
-    fi
-    
-    # 2. Reemplazar obsitracer.sh para leer la variable de atención del pane activo con el icono de gafas
-    echo "Configurando obsitracer.sh con el target local..."
-    cat << 'EOF' > "$KANAGAWA_DIR/scripts/obsitracer.sh"
-#!/usr/bin/env bash
-# Obsitracer status line renderer (眼鏡 / Gafas tracking)
+# 1. Crear el directorio de scripts si no existe
+mkdir -p "$TMUX_SCRIPTS_DIR"
 
-TARGET=$(tmux display-message -p -F "#{@obsitracer_target}" 2>/dev/null)
+# 2. Copiar el script del widget desde el repositorio local
+echo "Instalando script del widget en $OBSITRACER_SCRIPT..."
+cp "$SCRIPT_DIR/obsitracer_widget.sh" "$OBSITRACER_SCRIPT"
+chmod +x "$OBSITRACER_SCRIPT"
 
-if [ -n "$TARGET" ]; then
-  echo "👓 $TARGET"
-else
-  echo "👓 --"
-fi
-EOF
-    chmod +x "$KANAGAWA_DIR/scripts/obsitracer.sh"
-else
-    echo "⚠️ No se detectó instalación de tmux-kanagawa en $KANAGAWA_DIR"
+# 3. Limpiar la inyección antigua de .tmux.conf si existe
+if grep -q "obsitracer.sh" "$TMUX_CONF"; then
+    echo "Limpiando inyección standalone antigua en $TMUX_CONF..."
+    sed -i '/--- Widgets Independientes ---/d' "$TMUX_CONF"
+    sed -i '/obsitracer.sh/d' "$TMUX_CONF"
 fi
 
-# 3. Asegurar que 'obsitracer' esté configurado en el style.conf
+# 4. Configurar style.conf para usar la API de plugins custom de Ukiyo
 if [ -f "$STYLE_CONF" ]; then
-    if ! grep -q 'obsitracer' "$STYLE_CONF"; then
-        echo "Añadiendo obsitracer a la lista de plugins en style.conf..."
-        sed -i 's/\@kanagawa-plugins "/\@kanagawa-plugins "obsitracer /' "$STYLE_CONF"
+    echo "Ajustando @ukiyo-plugins en $STYLE_CONF..."
+    
+    # Asegurarnos de limpiar cualquier mención anterior
+    sed -i 's/ obsitracer//g' "$STYLE_CONF"
+    sed -i 's/obsitracer //g' "$STYLE_CONF"
+    sed -i 's/custom:[^ ]*//g' "$STYLE_CONF"
+    
+    # Reemplazar la línea entera de @ukiyo-plugins por la versión con custom:
+    # Esto lo colocará justo antes de 'git' (master)
+    sed -i "s|set -g @ukiyo-plugins .*|set -g @ukiyo-plugins \"custom:$OBSITRACER_SCRIPT git cpu-usage ram-usage\"|" "$STYLE_CONF"
+    
+    # Añadir el color custom para que haga juego con el tema (naranja estilo TokyoNight)
+    if ! grep -q "ukiyo-custom-plugin-colors" "$STYLE_CONF"; then
+        echo 'set -g @ukiyo-custom-plugin-colors "notice bg_pane"' >> "$STYLE_CONF"
+    else
+        sed -i 's/set -g @ukiyo-custom-plugin-colors .*/set -g @ukiyo-custom-plugin-colors "notice bg_pane"/' "$STYLE_CONF"
     fi
 fi
 
-# 4. Forzar recarga de tmux
+# 5. Forzar latencia cero en cambios de panel
+if ! grep -q "pane-focus-in" "$TMUX_CONF"; then
+    echo "set-hook -g pane-focus-in 'refresh-client -S'" >> "$TMUX_CONF"
+    echo "set-hook -g client-focus-in 'refresh-client -S'" >> "$TMUX_CONF"
+fi
+
+# 6. Forzar recarga de tmux
 if tmux info &>/dev/null; then
     echo "🔄 Recargando tmux..."
-    tmux source-file "$HOME/.tmux.conf" || true
+    tmux source-file "$TMUX_CONF" || true
 fi
 
-echo "✅ Integración de tmux completada."
+echo "✅ Integración de Ukiyo completada exitosamente."
