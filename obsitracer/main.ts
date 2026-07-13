@@ -1,5 +1,5 @@
 import { Plugin, Editor, MarkdownView, TFile, TAbstractFile } from 'obsidian';
-import { execSync } from 'child_process';
+import { execSync, exec } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -205,12 +205,12 @@ export default class Obsitracer extends Plugin {
 			fs.mkdirSync(path.dirname(this.focusPath), { recursive: true });
 			fs.writeFileSync(this.focusPath, JSON.stringify(payload, null, 2), 'utf8');
 
-			// Canal reactivo → tmux: empuja el foco actual sin polling
+			// Canal reactivo → tmux: empuja el foco actual y fuerza recarga del widget de forma ASÍNCRONA
 			const label = `📍 ${this.vaultName}/${this.activeFocus.file}`;
 			try {
-				execSync(`tmux set -gq @obsitracer "${label}"`, { timeout: 200, stdio: 'ignore' });
+				exec(`tmux set -gq @obsitracer "${label}" && tmux refresh-client -S`, { timeout: 200 }, () => {});
 			} catch (_) {
-				// Silencioso si no hay sesión tmux activa
+				// Silencioso
 			}
 		} catch (e) {
 			console.error('Error actualizando focus:', e);
