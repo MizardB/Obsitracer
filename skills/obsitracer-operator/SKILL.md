@@ -26,17 +26,17 @@ Antes de setear la variable, debes saber cómo se llama exactamente el Vault (se
 
 ### 3. Modificación del Foco en Tmux (Acción)
 Una vez resuelto el `VAULT_NAME` exacto:
-1. Ejecuta el comando de shell para setear el target local al panel/ventana actual:
+1. Ejecuta el comando de shell para setear el target local al panel actual:
    ```bash
-   tmux set-option -t "${TMUX_PANE:-.}" @obsitracer_target "VAULT_NAME"
+   tmux set-option -p -t "${TMUX_PANE:-.}" @obsitracer_target "VAULT_NAME"
    ```
 2. Confirma la acción al usuario diciendo: *"Sintonizando atención dinámica a [VAULT_NAME]..."*.
 3. El cambio tomará efecto en el **siguiente turno** del usuario (cuando el hook corra de nuevo).
 
 ### 4. Apagar / Limpiar el Foco
 Si el usuario te pide volver al comportamiento global (o simplemente limpiar la atención de esa terminal):
-1. Elimina la opción local usando el flag `-u` (unset):
+1. Elimina la opción local usando el flag `-u` (unset) y `-p` (panel):
    ```bash
-   tmux set-option -t "${TMUX_PANE:-.}" -u @obsitracer_target
+   tmux set-option -p -t "${TMUX_PANE:-.}" -u @obsitracer_target
    ```
 2. Confirma la acción al usuario diciendo: *"Atención dinámica apagada en esta ventana. Hook silenciado."*.

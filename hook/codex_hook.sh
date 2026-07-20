@@ -1,29 +1,27 @@
 #!/usr/bin/env bash
 BASE_DIR="$HOME/.config/obsitracer"
-SILENCE='{"injectSteps":[]}'
+
+# Read stdin into a variable (Codex sends JSON on stdin)
+INPUT=$(cat)
+HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty')
 
 # 1. Resolución de Atención Dinámica (Tmux Window/Pane Local)
-# Especificamos -t "${TMUX_PANE:-.}" para que tmux identifique el panel correcto en subprocesos
-# Primero buscamos a nivel de panel (-p), si no existe, hacemos fallback (ventana/sesión/global)
 TARGET_VAULT=$(tmux show-option -p -t "${TMUX_PANE:-.}" -qv @obsitracer_target 2>/dev/null)
 if [ -z "$TARGET_VAULT" ]; then
     TARGET_VAULT=$(tmux show-option -t "${TMUX_PANE:-.}" -qv @obsitracer_target 2>/dev/null)
 fi
 
-
 # 2. Silencio si no hay objetivo
 if [ -z "$TARGET_VAULT" ]; then
-    echo "$SILENCE"
     exit 0
 fi
 
 VAULT_DIR="$BASE_DIR/vaults/$TARGET_VAULT"
 FOCUS_FILE="$VAULT_DIR/focus.json"
 CRUD_FILE="$VAULT_DIR/crud.json"
-LAST_FOCUS_FILE="$VAULT_DIR/last_injected_focus.txt"
+LAST_FOCUS_FILE="$VAULT_DIR/last_injected_focus_codex.txt"
 
 if [ ! -d "$VAULT_DIR" ] || [ ! -f "$FOCUS_FILE" ]; then
-    echo "$SILENCE"
     exit 0
 fi
 
@@ -52,8 +50,6 @@ if [ -f "$CRUD_FILE" ]; then
 fi
 
 if [ "$HAS_NEW_FOCUS" -eq 0 ] && [ "$HAS_CRUD" -eq 0 ]; then
-    # Silencio total si no te has movido y no hay cambios CRUD
-    echo "$SILENCE"
     exit 0
 fi
 
@@ -82,10 +78,20 @@ $FOCUS_DATA
 No hay cambios estructurales (CRUD) recientes en este Vault."
 fi
 
-jq -n --arg ctx "$CONTEXTO" '{
-  "injectSteps": [
-    {
-      "ephemeralMessage": $ctx
-    }
-  ]
-}'
+# Output expected by Codex
+if [ -n "$HOOK_EVENT" ]; then
+    jq -n --arg ctx "$CONTEXTO" --arg event "$HOOK_EVENT" '{
+      "hookSpecificOutput": {
+        "hookEventName": $event,
+        "additionalContext": $ctx
+      }
+    }'
+else
+    # Default to UserPromptSubmit if event name is not available for some reason
+    jq -n --arg ctx "$CONTEXTO" '{
+      "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": $ctx
+      }
+    }'
+fi

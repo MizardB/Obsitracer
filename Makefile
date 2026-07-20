@@ -56,7 +56,7 @@ install-tmux:
 	@chmod +x $(CURDIR)/hook/install_tmux_integration.sh
 	@bash $(CURDIR)/hook/install_tmux_integration.sh
 
-install-hook:
+install-hook-agy:
 	@echo "Configurando el hook de Obsitracer en Antigravity..."
 	@mkdir -p ~/.gemini/config
 	@if [ ! -f ~/.gemini/config/hooks.json ]; then echo '{}' > ~/.gemini/config/hooks.json; fi
@@ -65,8 +65,23 @@ install-hook:
 	@echo "✅ Hook instalado. Antigravity ahora usará el script en $(CURDIR)/hook/inject_vault_diff.sh"
 	@echo "Configurando la skill de Obsitracer en Antigravity..."
 	@mkdir -p ~/.gemini/skills/obsitracer-operator
-	@ln -sf $(CURDIR)/skills/obsitracer-operator/SKILL.md ~/.gemini/skills/obsitracer-operator/SKILL.md
-	@echo "✅ Skill obsitracer-operator vinculada exitosamente en ~/.gemini/skills/."
+	@rm -f ~/.gemini/skills/obsitracer-operator/SKILL.md
+	@cp -f $(CURDIR)/skills/obsitracer-operator/SKILL.md ~/.gemini/skills/obsitracer-operator/SKILL.md
+	@echo "✅ Skill obsitracer-operator copiada exitosamente a ~/.gemini/skills/."
+	@$(MAKE) install-tmux
+
+install-hook-codex:
+	@echo "Configurando el hook de Obsitracer en Codex..."
+	@mkdir -p ~/.codex
+	@if [ ! -f ~/.codex/hooks.json ]; then echo '{"hooks": {}}' > ~/.codex/hooks.json; fi
+	@jq '.hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select((.hooks[0].command | contains("codex_hook.sh")) | not)) + [{"hooks": [{"type": "command", "command": "bash $(CURDIR)/hook/codex_hook.sh"}]}]) | .hooks.SessionStart = ((.hooks.SessionStart // []) | map(select((.hooks[0].command | contains("codex_hook.sh")) | not)) + [{"hooks": [{"type": "command", "command": "bash $(CURDIR)/hook/codex_hook.sh"}]}])' ~/.codex/hooks.json > ~/.codex/hooks_tmp.json
+	@mv ~/.codex/hooks_tmp.json ~/.codex/hooks.json
+	@echo "✅ Hook de Codex instalado. Asegúrate de revisar y confiar en el hook con '/hooks' en Codex."
+	@echo "Configurando la skill de Obsitracer en Codex..."
+	@mkdir -p ~/.codex/skills/obsitracer-operator
+	@rm -f ~/.codex/skills/obsitracer-operator/SKILL.md
+	@cp -f $(CURDIR)/skills/obsitracer-operator/SKILL.md ~/.codex/skills/obsitracer-operator/SKILL.md
+	@echo "✅ Skill obsitracer-operator copiada exitosamente a ~/.codex/skills/."
 	@$(MAKE) install-tmux
 
 

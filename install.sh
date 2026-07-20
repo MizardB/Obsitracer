@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 function menu() {
     clear
     echo -e "${CYAN}[=== OBSITRACER ORCHESTRATOR ===]${NC}"
-    echo "1) 🌐 Instalar/Actualizar Hook Global (Antigravity)"
+    echo "1) 🌐 Instalar en Agente (Hook & Skill)"
     echo "2) 🔗 Vincular Plugin a un Vault"
     echo "3) 🗑️  Desvincular Plugin de un Vault (Limpiar)"
     echo "4) 🔨 Re-compilar Plugin (Build)"
@@ -19,8 +19,19 @@ function menu() {
     
     case $opcion in
         1)
-            echo -e "\n${GREEN}Ejecutando: make install-hook${NC}"
-            make install-hook
+            echo -e "\n${CYAN}¿Para qué agente deseas instalar el hook?${NC}"
+            echo "a) Antigravity (Agy)"
+            echo "c) Codex"
+            read -p "Elige una opción (a/c): " ag_codex
+            if [[ "$ag_codex" == "a" || "$ag_codex" == "A" ]]; then
+                echo -e "\n${GREEN}Ejecutando: make install-hook-agy${NC}"
+                make install-hook-agy
+            elif [[ "$ag_codex" == "c" || "$ag_codex" == "C" ]]; then
+                echo -e "\n${GREEN}Ejecutando: make install-hook-codex${NC}"
+                make install-hook-codex
+            else
+                echo -e "${RED}Opción inválida.${NC}"
+            fi
             read -p "Presiona ENTER para continuar..."
             menu
             ;;
