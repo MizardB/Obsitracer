@@ -1,6 +1,6 @@
 OBSIDIAN_VAULT ?=
 
-.PHONY: build install install-hook uninstall
+.PHONY: build install install-hook-agy uninstall install-tmux
 
 build:
 	@echo "Construyendo Obsitracer..."
@@ -14,16 +14,14 @@ install: build
 		VAULT_PATH="$(OBSIDIAN_VAULT)"; \
 	fi; \
 	PLUGIN_DIR="$$VAULT_PATH/.obsidian/plugins/obsitracer"; \
-	LEGACY_DIR="$$VAULT_PATH/.obsidian/plugins/memoria-tracker"; \
 	if [ ! -d "$$VAULT_PATH/.obsidian/plugins" ]; then \
 		echo "Error: No se encontró .obsidian/plugins en $$VAULT_PATH. ¿Estás seguro que es un Vault válido?"; \
 		exit 1; \
 	fi; \
 	echo "Instalando symlink en $$PLUGIN_DIR..."; \
 	rm -rf "$$PLUGIN_DIR"; \
-	rm -rf "$$LEGACY_DIR"; \
 	ln -s "$(CURDIR)/obsitracer" "$$PLUGIN_DIR"; \
-	echo "✅ Obsitracer vinculado exitosamente."
+	echo "✅ Obsitracer vinculado exitosamente en el Vault."
 
 uninstall:
 	@if [ -z "$(OBSIDIAN_VAULT)" ]; then \
@@ -33,55 +31,23 @@ uninstall:
 		VAULT_PATH="$(OBSIDIAN_VAULT)"; \
 	fi; \
 	PLUGIN_DIR="$$VAULT_PATH/.obsidian/plugins/obsitracer"; \
-	LEGACY_DIR="$$VAULT_PATH/.obsidian/plugins/memoria-tracker"; \
 	if [ -L "$$PLUGIN_DIR" ] || [ -d "$$PLUGIN_DIR" ]; then \
 		rm -rf "$$PLUGIN_DIR"; \
 		echo "🗑️  Symlink del plugin eliminado de $$VAULT_PATH"; \
-	else \
-		echo "⚠️  No se encontró el plugin en $$VAULT_PATH"; \
-	fi; \
-	if [ -L "$$LEGACY_DIR" ] || [ -d "$$LEGACY_DIR" ]; then \
-		rm -rf "$$LEGACY_DIR"; \
-		echo "🗑️  Symlink legacy (memoria-tracker) eliminado."; \
-	fi; \
-	VAULT_NAME=$$(basename "$$VAULT_PATH"); \
-	BUZON_FILE=~/.config/obsitracer/vaults/$$VAULT_NAME.json; \
-	if [ -f "$$BUZON_FILE" ]; then \
-		rm -f "$$BUZON_FILE"; \
-		echo "🧹 Buzón residual $$VAULT_NAME.json eliminado."; \
-	fi; \
-	echo "✅ Desinstalación completa en el Vault $$VAULT_NAME."
+	fi
 
 install-tmux:
-	@chmod +x $(CURDIR)/hook/install_tmux_integration.sh
-	@bash $(CURDIR)/hook/install_tmux_integration.sh
+	@mkdir -p ~/.tmux/scripts
+	@echo "Enlazando script del widget a ~/.tmux/scripts/obsitracer.sh..."
+	@ln -sf "$(CURDIR)/hook/obsitracer_widget.sh" ~/.tmux/scripts/obsitracer.sh
+	@chmod +x ~/.tmux/scripts/obsitracer.sh
+	@chmod +x "$(CURDIR)/plugins/obsitracer/scripts/inject_vault_diff.sh"
+	@echo "✅ Widget de tmux instalado limpiamente (sin mutar tus dotfiles)."
 
 install-hook-agy:
-	@echo "Configurando el hook de Obsitracer en Antigravity..."
-	@mkdir -p ~/.gemini/config
-	@if [ ! -f ~/.gemini/config/hooks.json ]; then echo '{}' > ~/.gemini/config/hooks.json; fi
-	@jq '."inject-vault-diff" = {"PreInvocation": [{"type": "command", "command": "bash $(CURDIR)/hook/inject_vault_diff.sh"}]}' ~/.gemini/config/hooks.json > ~/.gemini/config/hooks_tmp.json
-	@mv ~/.gemini/config/hooks_tmp.json ~/.gemini/config/hooks.json
-	@echo "✅ Hook instalado. Antigravity ahora usará el script en $(CURDIR)/hook/inject_vault_diff.sh"
-	@echo "Configurando la skill de Obsitracer en Antigravity..."
-	@mkdir -p ~/.gemini/skills/obsitracer-operator
-	@rm -f ~/.gemini/skills/obsitracer-operator/SKILL.md
-	@cp -f $(CURDIR)/skills/obsitracer-operator/SKILL.md ~/.gemini/skills/obsitracer-operator/SKILL.md
-	@echo "✅ Skill obsitracer-operator copiada exitosamente a ~/.gemini/skills/."
+	@echo "Instalando plugin oficial de Obsitracer en Antigravity..."
+	@mkdir -p ~/.gemini/antigravity-cli/plugins
+	@rm -rf ~/.gemini/antigravity-cli/plugins/obsitracer
+	@ln -sfn "$(CURDIR)/plugins/obsitracer" ~/.gemini/antigravity-cli/plugins/obsitracer
+	@echo "✅ Plugin vinculado en ~/.gemini/antigravity-cli/plugins/obsitracer."
 	@$(MAKE) install-tmux
-
-install-hook-codex:
-	@echo "Configurando el hook de Obsitracer en Codex..."
-	@mkdir -p ~/.codex
-	@if [ ! -f ~/.codex/hooks.json ]; then echo '{"hooks": {}}' > ~/.codex/hooks.json; fi
-	@jq '.hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select((.hooks[0].command | contains("codex_hook.sh")) | not)) + [{"hooks": [{"type": "command", "command": "bash $(CURDIR)/hook/codex_hook.sh"}]}]) | .hooks.SessionStart = ((.hooks.SessionStart // []) | map(select((.hooks[0].command | contains("codex_hook.sh")) | not)) + [{"hooks": [{"type": "command", "command": "bash $(CURDIR)/hook/codex_hook.sh"}]}])' ~/.codex/hooks.json > ~/.codex/hooks_tmp.json
-	@mv ~/.codex/hooks_tmp.json ~/.codex/hooks.json
-	@echo "✅ Hook de Codex instalado. Asegúrate de revisar y confiar en el hook con '/hooks' en Codex."
-	@echo "Configurando la skill de Obsitracer en Codex..."
-	@mkdir -p ~/.codex/skills/obsitracer-operator
-	@rm -f ~/.codex/skills/obsitracer-operator/SKILL.md
-	@cp -f $(CURDIR)/skills/obsitracer-operator/SKILL.md ~/.codex/skills/obsitracer-operator/SKILL.md
-	@echo "✅ Skill obsitracer-operator copiada exitosamente a ~/.codex/skills/."
-	@$(MAKE) install-tmux
-
-
