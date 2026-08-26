@@ -13,12 +13,24 @@
       });
     in
     {
+      apps = forEachSupportedSystem ({ pkgs }: {
+        default = {
+          type = "app";
+          program = "${pkgs.writeShellScriptBin "obsitracer-installer" ''
+            export PATH="${pkgs.lib.makeBinPath [ pkgs.bash pkgs.gnumake pkgs.nodejs pkgs.esbuild pkgs.jq pkgs.tmux ]}:$PATH"
+            exec ${pkgs.bash}/bin/bash ./install.sh "$@"
+          ''}/bin/obsitracer-installer";
+        };
+      });
+
       devShells = forEachSupportedSystem ({ pkgs }: {
         default = pkgs.mkShell {
           packages = with pkgs; [
             nodejs
             gnumake
+            esbuild
             jq
+            tmux
           ];
 
           shellHook = ''

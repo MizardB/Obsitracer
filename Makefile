@@ -4,7 +4,7 @@ OBSIDIAN_VAULT ?=
 
 build:
 	@echo "Construyendo Obsitracer..."
-	@cd obsitracer && npm install && npm run build
+	@cd obsitracer && esbuild main.ts --bundle --platform=node --external:obsidian --external:electron --format=cjs --target=es2018 --outfile=main.js
 
 install: build
 	@if [ -z "$(OBSIDIAN_VAULT)" ]; then \

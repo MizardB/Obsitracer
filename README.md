@@ -9,12 +9,15 @@ Plugin de Obsidian + sistema de tracking cognitivo que alimenta a Antigravity co
 
 ## Instalación
 ```bash
-# Menú interactivo
+# En NixOS / Flakes (ejecuta el instalador con todas las dependencias aisladas)
+nix run
+
+# Menú interactivo tradicional
 bash install.sh
 
-# O directamente:
+# O directamente vía Make:
 make install OBSIDIAN_VAULT="/ruta/a/tu/vault"
-make install-hook
+make install-hook-agy
 ```
 
 ## tmux & Atención Dinámica
