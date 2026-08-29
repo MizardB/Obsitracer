@@ -19,19 +19,8 @@ function menu() {
     
     case $opcion in
         1)
-            echo -e "\n${CYAN}¿Para qué agente deseas instalar el hook?${NC}"
-            echo "a) Antigravity (Agy)"
-            echo "c) Codex"
-            read -p "Elige una opción (a/c): " ag_codex
-            if [[ "$ag_codex" == "a" || "$ag_codex" == "A" ]]; then
-                echo -e "\n${GREEN}Ejecutando: make install-hook-agy${NC}"
-                make install-hook-agy
-            elif [[ "$ag_codex" == "c" || "$ag_codex" == "C" ]]; then
-                echo -e "\n${GREEN}Ejecutando: make install-hook-codex${NC}"
-                make install-hook-codex
-            else
-                echo -e "${RED}Opción inválida.${NC}"
-            fi
+            echo -e "\n${GREEN}Instalando Plugin de Obsitracer en Antigravity & Widget de tmux...${NC}"
+            make install-hook-agy
             read -p "Presiona ENTER para continuar..."
             menu
             ;;
@@ -58,8 +47,9 @@ function menu() {
             menu
             ;;
         4)
-            echo -e "\n${GREEN}Ejecutando: make build${NC}"
+            echo -e "\n${GREEN}Ejecutando: make build && make build-engine${NC}"
             make build
+            make build-engine
             read -p "Presiona ENTER para continuar..."
             menu
             ;;

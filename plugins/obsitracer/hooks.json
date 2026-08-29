@@ -3,7 +3,7 @@
     "PreInvocation": [
       {
         "type": "command",
-        "command": "bash ./scripts/inject_vault_diff.sh"
+        "command": "./bin/obsitracer-hook"
       }
     ]
   }

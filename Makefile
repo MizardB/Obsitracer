@@ -36,18 +36,33 @@ uninstall:
 		echo "🗑️  Symlink del plugin eliminado de $$VAULT_PATH"; \
 	fi
 
+.PHONY: build build-engine install install-hook-agy uninstall install-tmux test
+
+build-engine:
+	@echo "Compilando motor de alto rendimiento en Go (obsitracer-hook)..."
+	@mkdir -p plugins/obsitracer/bin
+	@go build -ldflags="-s -w" -o plugins/obsitracer/bin/obsitracer-hook ./cmd/obsitracer-hook
+	@chmod +x plugins/obsitracer/bin/obsitracer-hook
+	@echo "✅ Binario Go compilado en plugins/obsitracer/bin/obsitracer-hook"
+
+test:
+	@echo "Ejecutando suite de tests unitarios en Go..."
+	@go test -v ./...
+
 install-tmux:
 	@mkdir -p ~/.tmux/scripts
 	@echo "Enlazando script del widget a ~/.tmux/scripts/obsitracer.sh..."
-	@ln -sf "$(CURDIR)/hook/obsitracer_widget.sh" ~/.tmux/scripts/obsitracer.sh
+	@ln -sf "$(CURDIR)/tmux/obsitracer_widget.sh" ~/.tmux/scripts/obsitracer.sh
 	@chmod +x ~/.tmux/scripts/obsitracer.sh
-	@chmod +x "$(CURDIR)/plugins/obsitracer/scripts/inject_vault_diff.sh"
 	@echo "✅ Widget de tmux instalado limpiamente (sin mutar tus dotfiles)."
 
-install-hook-agy:
+install-hook-agy: build-engine
 	@echo "Instalando plugin oficial de Obsitracer en Antigravity..."
+	@mkdir -p ~/.gemini/config/plugins
+	@rm -rf ~/.gemini/config/plugins/obsitracer
+	@ln -sfn "$(CURDIR)/plugins/obsitracer" ~/.gemini/config/plugins/obsitracer
 	@mkdir -p ~/.gemini/antigravity-cli/plugins
 	@rm -rf ~/.gemini/antigravity-cli/plugins/obsitracer
 	@ln -sfn "$(CURDIR)/plugins/obsitracer" ~/.gemini/antigravity-cli/plugins/obsitracer
-	@echo "✅ Plugin vinculado en ~/.gemini/antigravity-cli/plugins/obsitracer."
+	@echo "✅ Plugin autocontenido instalado en ~/.gemini/config/plugins/obsitracer."
 	@$(MAKE) install-tmux
