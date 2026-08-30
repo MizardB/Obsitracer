@@ -199,24 +199,41 @@ func runInstallerTUI() {
 	}
 
 	// -------------------------------------------------------------------------
-	// ETAPA 4: Despliegue de Hook y Skill en Antigravity
+	// ETAPA 4: Despliegue de Hook, Skill y CLI Global
 	// -------------------------------------------------------------------------
 	agyPluginDir := filepath.Join(home, ".gemini", "antigravity-cli", "plugins", "obsitracer")
 	geminiPluginDir := filepath.Join(home, ".gemini", "config", "plugins", "obsitracer")
+	localBinDir := filepath.Join(home, ".local", "bin")
 
 	_ = spinner.New().
-		Title("Vinculando Hook PreInvocation y Skill en Antigravity...").
+		Title("Vinculando Hook PreInvocation, Skill y CLI Global...").
 		Action(func() {
 			_ = os.MkdirAll(filepath.Dir(agyPluginDir), 0755)
 			_ = os.MkdirAll(filepath.Dir(geminiPluginDir), 0755)
+			_ = os.MkdirAll(localBinDir, 0755)
+
 			_ = os.Remove(agyPluginDir)
 			_ = os.Remove(geminiPluginDir)
 			_ = os.Symlink(filepath.Join(repoDir, "plugins", "obsitracer"), agyPluginDir)
 			_ = os.Symlink(filepath.Join(repoDir, "plugins", "obsitracer"), geminiPluginDir)
+
+			// Asegurar symlinks de binarios
+			cliBinPath := filepath.Join(repoDir, "bin", "obsitracer")
+			if _, err := os.Stat(cliBinPath); err == nil {
+				_ = os.Remove(filepath.Join(localBinDir, "obsitracer"))
+				_ = os.Symlink(cliBinPath, filepath.Join(localBinDir, "obsitracer"))
+
+				_ = os.MkdirAll(filepath.Join(repoDir, "plugins", "obsitracer", "bin"), 0755)
+				_ = os.Remove(filepath.Join(repoDir, "plugins", "obsitracer", "bin", "obsitracer"))
+				_ = os.Remove(filepath.Join(repoDir, "plugins", "obsitracer", "bin", "obsitracer-hook"))
+				_ = os.Symlink(cliBinPath, filepath.Join(repoDir, "plugins", "obsitracer", "bin", "obsitracer"))
+				_ = os.Symlink(cliBinPath, filepath.Join(repoDir, "plugins", "obsitracer", "bin", "obsitracer-hook"))
+			}
 		}).
 		Run()
 
 	notifyStep("Antigravity Plugin", "(Hook PreInvocation y Skill obsitracer-operator registrados)", true)
+	notifyStep("CLI Global", "(Symlink ~/.local/bin/obsitracer creado en PATH)", true)
 
 	// -------------------------------------------------------------------------
 	// ETAPA 5: Vinculación de Vaults y Registro JSON

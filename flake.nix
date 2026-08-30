@@ -16,10 +16,24 @@
       apps = forEachSupportedSystem ({ pkgs }: {
         default = {
           type = "app";
-          program = "${pkgs.writeShellScriptBin "obsitracer-installer" ''
-            export PATH="${pkgs.lib.makeBinPath [ pkgs.bash pkgs.gnumake pkgs.nodejs pkgs.esbuild pkgs.jq pkgs.fzf pkgs.tmux pkgs.go ]}:$PATH"
-            exec ${pkgs.bash}/bin/bash ./install.sh "$@"
-          ''}/bin/obsitracer-installer";
+          program = "${pkgs.writeShellScriptBin "obsitracer-setup" ''
+            set -eo pipefail
+            export PATH="${pkgs.lib.makeBinPath [ pkgs.bash pkgs.nodejs pkgs.esbuild pkgs.jq pkgs.fzf pkgs.tmux pkgs.go ]}:$HOME/.local/bin:$PATH"
+
+            REPO_DIR="$(pwd)"
+            mkdir -p "$REPO_DIR/bin" "$REPO_DIR/plugins/obsitracer/bin" "$HOME/.local/bin"
+
+            echo "📦 Compilando CLI unificado de Obsitracer en Go..."
+            (cd "$REPO_DIR" && go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer)
+            cp "$REPO_DIR/bin/obsitracer" "$REPO_DIR/plugins/obsitracer/bin/obsitracer"
+            cp "$REPO_DIR/bin/obsitracer" "$REPO_DIR/plugins/obsitracer/bin/obsitracer-hook"
+            chmod +x "$REPO_DIR/bin/obsitracer" "$REPO_DIR/plugins/obsitracer/bin/obsitracer" "$REPO_DIR/plugins/obsitracer/bin/obsitracer-hook"
+
+            echo "🔗 Creando enlace simbólico en ~/.local/bin/obsitracer..."
+            ln -sf "$REPO_DIR/bin/obsitracer" "$HOME/.local/bin/obsitracer"
+
+            exec "$REPO_DIR/bin/obsitracer" install "$@"
+          ''}/bin/obsitracer-setup";
         };
       });
 
@@ -27,7 +41,6 @@
         default = pkgs.mkShell {
           packages = with pkgs; [
             nodejs
-            gnumake
             esbuild
             jq
             fzf

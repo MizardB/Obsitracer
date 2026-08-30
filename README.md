@@ -3,22 +3,21 @@
 Plugin de Obsidian + sistema de tracking cognitivo que alimenta a Antigravity con contexto en tiempo real sobre qué vault y nota tiene el usuario en foco.
 
 ## Componentes
+- `cmd/obsitracer/` — CLI unificado en Go (TUI interactiva, selector, widget y hook PreInvocation).
 - `obsitracer/` — Plugin de Obsidian: trackea cursor, foco y CRUD. Empuja el foco activo a tmux vía canal reactivo.
 - `plugins/obsitracer/` — Plugin oficial de Antigravity (Hook PreInvocation + Skill `obsitracer-operator`).
-- `tmux/` — Widget para la barra de estado de Tmux.
-- `install.sh` / `Makefile` — Orquestador de instalación, build y vinculación de vaults.
+- `tmux/` — Plugin autónomo de Tmux (`~/.tmux/plugins/obsitracer`).
+- `flake.nix` — Entorno reproducible con orquestador integrado (`nix run`).
 
 ## Instalación
+
 ```bash
-# En NixOS / Flakes (ejecuta el instalador con todas las dependencias aisladas)
+# Instalación completa e interactiva con entorno aislado y creación de symlink (~/.local/bin/obsitracer):
 nix run
 
-# Menú interactivo tradicional
-bash install.sh
-
-# O directamente vía Make:
-make install OBSIDIAN_VAULT="/ruta/a/tu/vault"
-make install-hook-agy
+# O si ya tienes Go instalado en tu entorno:
+go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer
+./bin/obsitracer install
 ```
 
 ## tmux & Atención Dinámica

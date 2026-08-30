@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -19,6 +20,9 @@ con tu terminal Tmux y Antigravity en tiempo real.`,
 }
 
 func Execute() {
+	if len(os.Args) > 0 && filepath.Base(os.Args[0]) == "obsitracer-hook" && len(os.Args) == 1 {
+		os.Args = append(os.Args, "hook")
+	}
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

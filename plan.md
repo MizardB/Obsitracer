@@ -123,9 +123,7 @@ Este documento define la especificación técnica y el diseño del instalador TU
 
 ```text
 Obsitracer/
-├── flake.nix                # Entorno reproducible con todas las herramientas TUI
-├── Makefile                 # Targets de compilación e instalación atómica
-├── install.sh               # Entrypoint del orquestador / TUI Split-Screen
+├── flake.nix                # Entorno reproducible con orquestador integrado (nix run)
 ├── plan.md                  # Este documento
 ├── README.md                # Documentación oficial
 ├── cmd/
