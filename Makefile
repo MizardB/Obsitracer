@@ -51,10 +51,11 @@ test:
 
 install-tmux:
 	@mkdir -p ~/.tmux/scripts
-	@echo "Enlazando script del widget a ~/.tmux/scripts/obsitracer.sh..."
+	@echo "Enlazando scripts de tmux..."
 	@ln -sf "$(CURDIR)/tmux/obsitracer_widget.sh" ~/.tmux/scripts/obsitracer.sh
-	@chmod +x ~/.tmux/scripts/obsitracer.sh
-	@echo "✅ Widget de tmux instalado limpiamente (sin mutar tus dotfiles)."
+	@ln -sf "$(CURDIR)/tmux/obsitracer_select.sh" ~/.tmux/scripts/obsitracer-select.sh
+	@chmod +x ~/.tmux/scripts/obsitracer.sh ~/.tmux/scripts/obsitracer-select.sh
+	@echo "✅ Scripts de tmux instalados limpiamente (widget y selector)."
 
 install-hook-agy: build-engine
 	@echo "Instalando plugin oficial de Obsitracer en Antigravity..."

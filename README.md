@@ -31,15 +31,21 @@ Obsitracer se integra de forma modular con tu barra de estado de tmux. La integr
 *(Nota arquitectónica: Si decides cambiar de motor de temas y abandonar Ukiyo, el widget dejará de renderizarse. En ese escenario, se requerirá refactorizar el instalador o forzar la inyección nativa con `set -ag status-right`).*
 
 ### Activación y Foco local
-Para sintonizar la atención a un Vault específico desde un panel de tmux:
-```bash
-# Sintonizar foco a un Vault
-tmux set-option -p @obsitracer_target "MemorIA"
+Tienes dos métodos para sintonizar el foco en el panel activo:
 
-# Apagar el foco en el panel
-tmux set-option -p -u @obsitracer_target
-```
-*Nota: También puedes usar la skill `obsitracer-operator` desde Antigravity para delegar esta sintonización automáticamente.*
+1. **Modo Interactivo (Recomendado):**
+   - Presiona `Alt + o` (directo sin prefijo) o `Ctrl+a -> o` en cualquier panel de tmux.
+   - Se abrirá un popup flotante con `fzf` mostrando tus vaults registrados y la opción de silenciar/apagar el foco.
+
+2. **Control Manual CLI:**
+   ```bash
+   # Sintonizar foco a un Vault
+   tmux set-option -p @obsitracer_target "MemorIA"
+
+   # Apagar el foco en el panel
+   tmux set-option -p -u @obsitracer_target
+   ```
+*Nota: También puedes usar la skill `obsitracer-operator` desde Antigravity para delegar esta sintonización conversacionalmente.*
 
 ### Personalización de Colores (TokyoNight)
 El color del widget se maneja a través de las variables de colores custom de Ukiyo. Por ejemplo, para usar el color naranja (`notice` en TokyoNight):
