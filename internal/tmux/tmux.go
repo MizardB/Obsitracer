@@ -10,12 +10,23 @@ import (
 )
 
 func resolvePane(paneID string) string {
-	if paneID != "" {
+	if paneID != "" && !strings.HasPrefix(paneID, "#{") {
 		return paneID
 	}
 	pane := os.Getenv("TMUX_PANE")
 	if pane != "" {
 		return pane
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-F", "#{pane_id}")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err == nil {
+		p := strings.TrimSpace(out.String())
+		if p != "" {
+			return p
+		}
 	}
 	return "."
 }
@@ -40,7 +51,18 @@ func GetTmuxTarget(paneID string) string {
 		}
 	}
 
-	// 2. Fallback a nivel de ventana (-t)
+	// 2. Fallback a nivel de ventana (-w)
+	out.Reset()
+	cmd = exec.CommandContext(ctx, "tmux", "show-option", "-w", "-t", pane, "-qv", "@obsitracer_target")
+	cmd.Stdout = &out
+	if err := cmd.Run(); err == nil {
+		target := strings.TrimSpace(out.String())
+		if target != "" {
+			return target
+		}
+	}
+
+	// 3. Fallback genérico de ventana (-t)
 	out.Reset()
 	cmd = exec.CommandContext(ctx, "tmux", "show-option", "-t", pane, "-qv", "@obsitracer_target")
 	cmd.Stdout = &out
@@ -56,8 +78,12 @@ func SetTmuxTarget(paneID, target string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", pane, "@obsitracer_target", target)
-	return cmd.Run()
+	// Seteamos a nivel de ventana y panel para consistencia total en el workspace
+	cmdWin := exec.CommandContext(ctx, "tmux", "set-option", "-w", "-t", pane, "@obsitracer_target", target)
+	_ = cmdWin.Run()
+
+	cmdPane := exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", pane, "@obsitracer_target", target)
+	return cmdPane.Run()
 }
 
 func UnsetTmuxTarget(paneID string) error {
@@ -65,8 +91,12 @@ func UnsetTmuxTarget(paneID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", pane, "-u", "@obsitracer_target")
-	return cmd.Run()
+	// Limpiamos tanto a nivel de ventana como de panel
+	cmdWin := exec.CommandContext(ctx, "tmux", "set-option", "-w", "-t", pane, "-u", "@obsitracer_target")
+	_ = cmdWin.Run()
+
+	cmdPane := exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", pane, "-u", "@obsitracer_target")
+	return cmdPane.Run()
 }
 
 func RefreshClient() {

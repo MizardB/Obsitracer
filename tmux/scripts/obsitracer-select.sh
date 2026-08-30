@@ -5,8 +5,8 @@
 export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:$PATH"
 
 PANE_ID="$1"
-if [ -z "$PANE_ID" ]; then
-    PANE_ID="${TMUX_PANE:-.}"
+if [ -z "$PANE_ID" ] || [ "$PANE_ID" = "#{pane_id}" ]; then
+    PANE_ID=$(tmux display-message -p -F "#{pane_id}" 2>/dev/null || echo ".")
 fi
 
 # 1. Intentar con CLI unificado en Go (Huh / Charm)

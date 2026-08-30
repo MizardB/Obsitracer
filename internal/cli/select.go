@@ -8,6 +8,7 @@ import (
 	"obsitracer/internal/config"
 	"obsitracer/internal/tmux"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
@@ -34,8 +35,9 @@ var selectCmd = &cobra.Command{
 		}
 
 		currentTarget := tmux.GetTmuxTarget(selectPaneID)
-		if currentTarget == "" {
-			currentTarget = "Ninguno (Silenciado)"
+		currentTargetDisplay := currentTarget
+		if currentTargetDisplay == "" {
+			currentTargetDisplay = "Ninguno (Silenciado)"
 		}
 
 		var options []huh.Option[string]
@@ -46,19 +48,32 @@ var selectCmd = &cobra.Command{
 			options = append(options, huh.NewOption(label, v.Name))
 		}
 
+		options = append(options, huh.NewOption("[⎋] Cancelar (Mantener actual)", "__CANCEL__"))
+
 		var selected string
+		if currentTarget != "" {
+			selected = currentTarget
+		}
+
+		keymap := huh.NewDefaultKeyMap()
+		keymap.Quit = key.NewBinding(
+			key.WithKeys("esc", "q", "ctrl+c"),
+			key.WithHelp("esc/q", "cancelar"),
+		)
+
 		form := huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("🧠 Obsitracer - Selector de Vault").
-					Description("Foco actual: " + currentTarget).
+					Description(fmt.Sprintf("Foco actual: %s  •  [Enter] Sintonizar  •  [Esc/q] Cancelar", currentTargetDisplay)).
 					Options(options...).
+					Height(9).
 					Value(&selected),
 			),
-		).WithTheme(huh.ThemeCatppuccin())
+		).WithTheme(huh.ThemeCatppuccin()).WithKeyMap(keymap)
 
-		if err := form.Run(); err != nil {
-			// Usuario canceló con Ctrl+C / Esc
+		if err := form.Run(); err != nil || selected == "__CANCEL__" || selected == "" {
+			// Usuario canceló con Ctrl+C / Esc / q / opción Cancelar
 			return
 		}
 
@@ -66,7 +81,7 @@ var selectCmd = &cobra.Command{
 			_ = tmux.UnsetTmuxTarget(selectPaneID)
 			tmux.RefreshClient()
 			tmux.DisplayMessage(selectPaneID, "Obsitracer: Foco apagado en este panel")
-		} else if selected != "" {
+		} else {
 			_ = tmux.SetTmuxTarget(selectPaneID, selected)
 			tmux.RefreshClient()
 			tmux.DisplayMessage(selectPaneID, fmt.Sprintf("Obsitracer: Foco sintonizado a [%s]", selected))

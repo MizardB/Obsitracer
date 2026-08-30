@@ -3,7 +3,7 @@
     "PreInvocation": [
       {
         "type": "command",
-        "command": "./bin/obsitracer-hook"
+        "command": "obsitracer hook"
       }
     ]
   }

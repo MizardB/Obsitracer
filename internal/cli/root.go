@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -14,15 +13,17 @@ var rootCmd = &cobra.Command{
 	Long: `Obsitracer es el puente cognitivo que conecta tus notas activas en Obsidian
 con tu terminal Tmux y Antigravity en tiempo real.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Por defecto, si se invoca sin subcomandos, lanza la TUI interactiva
-		runInstallerTUI()
+		// Por defecto, si se invoca sin subcomandos en una terminal interactiva, lanza la TUI
+		stat, err := os.Stdin.Stat()
+		if err == nil && (stat.Mode()&os.ModeCharDevice) != 0 {
+			runInstallerTUI()
+		} else {
+			_ = cmd.Help()
+		}
 	},
 }
 
 func Execute() {
-	if len(os.Args) > 0 && filepath.Base(os.Args[0]) == "obsitracer-hook" && len(os.Args) == 1 {
-		os.Args = append(os.Args, "hook")
-	}
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

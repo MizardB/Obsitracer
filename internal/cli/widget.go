@@ -20,11 +20,6 @@ var widgetCmd = &cobra.Command{
 	Use:   "widget",
 	Short: "Genera el badge de estado para la barra de Tmux",
 	Run: func(cmd *cobra.Command, args []string) {
-		cmdName := tmux.GetPaneCommand(widgetPaneID)
-		if !strings.Contains(cmdName, "agy") {
-			return
-		}
-
 		targetVault := tmux.GetTmuxTarget(widgetPaneID)
 
 		if targetVault == "" {

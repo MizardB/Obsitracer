@@ -14,12 +14,6 @@ if [ -x "$SCRIPT_DIR/../../bin/obsitracer" ]; then
 fi
 
 # Fallback bash rápido
-PANE_CMD=$(tmux display-message -p -F "#{pane_current_command}" 2>/dev/null || true)
-if [[ "$PANE_CMD" != *"agy"* ]]; then
-    echo -n ""
-    exit 0
-fi
-
 TARGET_VAULT=$(tmux display-message -p -F "#{@obsitracer_target}" 2>/dev/null || true)
 if [ -n "$TARGET_VAULT" ]; then
     echo "👓 $TARGET_VAULT"

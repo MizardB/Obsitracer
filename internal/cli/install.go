@@ -227,8 +227,33 @@ func runInstallerTUI() {
 				_ = os.Remove(filepath.Join(repoDir, "plugins", "obsitracer", "bin", "obsitracer"))
 				_ = os.Remove(filepath.Join(repoDir, "plugins", "obsitracer", "bin", "obsitracer-hook"))
 				_ = os.Symlink(cliBinPath, filepath.Join(repoDir, "plugins", "obsitracer", "bin", "obsitracer"))
-				_ = os.Symlink(cliBinPath, filepath.Join(repoDir, "plugins", "obsitracer", "bin", "obsitracer-hook"))
 			}
+
+			// Fusionar hook en ~/.gemini/config/hooks.json
+			configHooksPath := filepath.Join(home, ".gemini", "config", "hooks.json")
+			_ = os.MkdirAll(filepath.Dir(configHooksPath), 0755)
+			hooksMap := make(map[string]any)
+			if data, err := os.ReadFile(configHooksPath); err == nil && len(data) > 0 {
+				_ = json.Unmarshal(data, &hooksMap)
+			}
+			hooksMap["inject-vault-diff"] = map[string]any{
+				"PreInvocation": []map[string]any{
+					{
+						"type":    "command",
+						"command": "obsitracer hook",
+					},
+				},
+			}
+			if encoded, err := json.MarshalIndent(hooksMap, "", "  "); err == nil {
+				_ = os.WriteFile(configHooksPath, encoded, 0644)
+			}
+
+			// Symlink de la Skill en ~/.gemini/config/skills/obsitracer-operator
+			globalSkillsDir := filepath.Join(home, ".gemini", "config", "skills")
+			_ = os.MkdirAll(globalSkillsDir, 0755)
+			skillTarget := filepath.Join(globalSkillsDir, "obsitracer-operator")
+			_ = os.Remove(skillTarget)
+			_ = os.Symlink(filepath.Join(repoDir, "plugins", "obsitracer", "skills", "obsitracer-operator"), skillTarget)
 		}).
 		Run()
 
