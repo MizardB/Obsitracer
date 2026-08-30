@@ -138,4 +138,29 @@ El binario global `obsitracer` provee utilidades directas para scripts, atajos y
 | `Prefix + O` | Atajo secundario con prefijo de Tmux (`Ctrl+a -> O` / `Ctrl+b -> O`). |
 | `Esc` / `q` | Cancela y cierra el selector flotante conservando el foco actual. |
 
+---
+
+## Filosofía del Proyecto y Contribuciones
+
+Obsitracer es un proyecto *opinionated* de autor, concebido y optimizado para flujos de trabajo terminal-first de alta eficiencia:
+* **Entorno principal:** Linux / NixOS con Tmux.
+* **Agente AI objetivo:** Antigravity / Gemini CLI (mediante hooks PreInvocation).
+* **Frontend de notas:** Obsidian.
+
+### Contribuciones y Pull Requests
+Las contribuciones de la comunidad son bienvenidas, especialmente en:
+* Soporte e integraciones con nuevos agentes de IA por terminal.
+* Optimizaciones en el bundle y ciclo de eventos del plugin de Obsidian.
+* Correcciones de bugs y compatibilidad con otros entornos POSIX.
+
+**Requisitos para Pull Requests:**
+1. **Conventional Commits:** Todo commit debe seguir el estándar (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`).
+2. **Revisión Asistida:** Los Pull Requests se evalúan y prueban de forma asíncrona mediante workflows de auditoría con IA antes de integrarse en la rama principal.
+
+---
+
+## Licencia
+
+Este proyecto está distribuido bajo la licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más detalles.
+
 
