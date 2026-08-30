@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 🧠 OBSITRACER MASTER ORCHESTRATOR & INSTALLER
+# 🧠 OBSITRACER MASTER ORCHESTRATOR & INSTALLER (RESPONSIVE TUI)
 # ==============================================================================
 # Dual-Panel Split TUI:
+#  - Auto-responsive to any terminal / tmux pane width
 #  - Left Panel:  Step-by-step Interactive Workflow
 #  - Right Panel: Real-time Telemetry, System Audit & Build Logs
 # ==============================================================================
@@ -26,11 +27,50 @@ C_MAGENTA='\033[38;2;187;154;247m'  # #bb9af7
 C_GREEN='\033[38;2;158;206;106m'    # #9ece6a
 C_YELLOW='\033[38;2;224;175;104m'   # #e0af68
 C_RED='\033[38;2;247;118;142m'      # #f7768e
-C_BG_BOX='\033[48;2;26;27;38m'      # #1a1b26
 C_BORDER='\033[38;2;65;72;104m'     # #414868
 
 # Status log array for right panel
 declare -a LOG_LINES=()
+
+function strip_ansi() {
+    echo -e "$1" | sed "s/\x1b\[[0-9;]*[a-zA-Z]//g"
+}
+
+function get_vis_len() {
+    local plain
+    plain=$(strip_ansi "$1")
+    echo "${#plain}"
+}
+
+function repeat_str() {
+    local char="$1"
+    local count="$2"
+    if [ "$count" -le 0 ]; then return; fi
+    local line
+    line=$(printf "%*s" "$count" "")
+    echo -n "${line// /$char}"
+}
+
+function pad_cell() {
+    local text="$1"
+    local width="$2"
+    local cur_w
+    cur_w=$(get_vis_len "$text")
+    local diff=$((width - cur_w))
+    if [ "$diff" -gt 0 ]; then
+        local spaces
+        spaces=$(printf "%*s" "$diff" "")
+        echo -en "$text$spaces"
+    elif [ "$diff" -lt 0 ]; then
+        local plain
+        plain=$(strip_ansi "$text")
+        local max_w=$((width - 1))
+        [ "$max_w" -lt 1 ] && max_w=1
+        echo -en "${plain:0:$max_w}…"
+    else
+        echo -en "$text"
+    fi
+}
 
 function add_log() {
     local prefix="$1"
@@ -39,7 +79,7 @@ function add_log() {
     local timestamp
     timestamp=$(date +"%H:%M:%S")
     LOG_LINES+=("${C_DIM}${timestamp}${C_RESET} ${color}[${prefix}]${C_RESET} ${msg}")
-    if [ ${#LOG_LINES[@]} -gt 14 ]; then
+    if [ ${#LOG_LINES[@]} -gt 12 ]; then
         LOG_LINES=("${LOG_LINES[@]:1}")
     fi
 }
@@ -53,20 +93,36 @@ function draw_screen() {
     local status_5="${6:-[ ]}"
     local action_hint="${7:-Presiona [ENTER] para continuar o [Ctrl+C] para salir}"
 
-    clear
+    # Calcular dimensiones dinámicas del terminal
     local term_cols
-    term_cols=$(tput cols 2>/dev/null || echo 90)
-    [ "$term_cols" -lt 90 ] && term_cols=90
-    local left_w=38
-    local right_w=$((term_cols - left_w - 5))
+    term_cols=$(tput cols 2>/dev/null || echo 80)
+    [ "$term_cols" -lt 65 ] && term_cols=65
 
-    echo -e "${C_BOLD}${C_CYAN}┌────────────────────────────────────────────────────────────────────────────────────────┐${C_RESET}"
-    echo -e "${C_BOLD}${C_CYAN}│  🧠 OBSITRACER MASTER ORCHESTRATOR & INSTALLER                                v1.2.0   │${C_RESET}"
-    echo -e "${C_BOLD}${C_CYAN}├────────────────────────────────────────┬───────────────────────────────────────────────┤${C_RESET}"
-    echo -e "${C_BOLD}${C_MAGENTA}│  FLUID WORKFLOW (STEPPER)              │  LIVE TELEMETRY & SYSTEM STATUS               │${C_RESET}"
-    echo -e "${C_BORDER}├────────────────────────────────────────┼───────────────────────────────────────────────┤${C_RESET}"
+    local box_w=$((term_cols - 2))
+    local left_w=32
+    local right_w=$((box_w - left_w - 3))
+    local full_inner_w=$((box_w - 2))
 
-    # Step list on left, logs on right
+    clear 2>/dev/null || true
+    # 1. Top border
+    echo -e "${C_BORDER}┌$(repeat_str "─" "$full_inner_w")┐${C_RESET}"
+    
+    # 2. Header
+    local title="${C_BOLD}${C_CYAN} 🧠 OBSITRACER MASTER ORCHESTRATOR & INSTALLER${C_RESET}"
+    echo -e "${C_BORDER}│${C_RESET}$(pad_cell "$title" "$full_inner_w")${C_BORDER}│${C_RESET}"
+    
+    # 3. Column headers divider
+    echo -e "${C_BORDER}├$(repeat_str "─" "$left_w")┬$(repeat_str "─" "$right_w")┤${C_RESET}"
+    
+    # 4. Column headers
+    local col_left="${C_BOLD}${C_MAGENTA} FLUID WORKFLOW (STEPPER)${C_RESET}"
+    local col_right="${C_BOLD}${C_MAGENTA} LIVE TELEMETRY & SYSTEM STATUS${C_RESET}"
+    echo -e "${C_BORDER}│${C_RESET}$(pad_cell "$col_left" "$left_w")${C_BORDER}│${C_RESET}$(pad_cell "$col_right" "$right_w")${C_BORDER}│${C_RESET}"
+    
+    # 5. Content divider
+    echo -e "${C_BORDER}├$(repeat_str "─" "$left_w")┼$(repeat_str "─" "$right_w")┤${C_RESET}"
+
+    # 6. Step list and live logs
     local steps=(
         "$status_1 1. Auditoría del Entorno"
         "$status_2 2. Plugin Autónomo de Tmux"
@@ -75,15 +131,14 @@ function draw_screen() {
         "$status_5 5. Healthcheck y Activación"
     )
 
-    for i in {0..11}; do
+    for i in {0..9}; do
         local left_content=""
-        if [ "$i" -eq 1 ]; then left_content="${steps[0]}"; fi
-        if [ "$i" -eq 3 ]; then left_content="${steps[1]}"; fi
-        if [ "$i" -eq 5 ]; then left_content="${steps[2]}"; fi
-        if [ "$i" -eq 7 ]; then left_content="${steps[3]}"; fi
-        if [ "$i" -eq 9 ]; then left_content="${steps[4]}"; fi
+        if [ "$i" -eq 1 ]; then left_content=" ${steps[0]}"; fi
+        if [ "$i" -eq 3 ]; then left_content=" ${steps[1]}"; fi
+        if [ "$i" -eq 5 ]; then left_content=" ${steps[2]}"; fi
+        if [ "$i" -eq 7 ]; then left_content=" ${steps[3]}"; fi
+        if [ "$i" -eq 9 ]; then left_content=" ${steps[4]}"; fi
 
-        # Colorize active or completed steps
         if [ -n "$left_content" ]; then
             if [[ "$left_content" == *"[✔]"* ]]; then
                 left_content="${C_GREEN}${left_content}${C_RESET}"
@@ -98,16 +153,26 @@ function draw_screen() {
 
         local right_content=""
         if [ "$i" -lt "${#LOG_LINES[@]}" ]; then
-            right_content="${LOG_LINES[$i]}"
+            right_content=" ${LOG_LINES[$i]}"
         fi
 
-        # Format line with clean padding
-        printf "${C_BORDER}│${C_RESET} %-48b ${C_BORDER}│${C_RESET} %-57b ${C_BORDER}│${C_RESET}\n" "$left_content" "$right_content"
+        local left_cell
+        left_cell=$(pad_cell "$left_content" "$left_w")
+        local right_cell
+        right_cell=$(pad_cell "$right_content" "$right_w")
+
+        echo -e "${C_BORDER}│${C_RESET}${left_cell}${C_BORDER}│${C_RESET}${right_cell}${C_BORDER}│${C_RESET}"
     done
 
-    echo -e "${C_BORDER}├────────────────────────────────────────┴───────────────────────────────────────────────┤${C_RESET}"
-    printf "${C_BORDER}│${C_RESET} ${C_BOLD}${C_BLUE}Acción:${C_RESET} %-78b ${C_BORDER}│${C_RESET}\n" "$action_hint"
-    echo -e "${C_BOLD}${C_CYAN}└────────────────────────────────────────────────────────────────────────────────────────┘${C_RESET}"
+    # 7. Action divider
+    echo -e "${C_BORDER}├$(repeat_str "─" "$left_w")┴$(repeat_str "─" "$right_w")┤${C_RESET}"
+    
+    # 8. Action row
+    local action_text=" ${C_BOLD}${C_BLUE}Acción:${C_RESET} ${action_hint}"
+    echo -e "${C_BORDER}│${C_RESET}$(pad_cell "$action_text" "$full_inner_w")${C_BORDER}│${C_RESET}"
+    
+    # 9. Bottom border
+    echo -e "${C_BORDER}└$(repeat_str "─" "$full_inner_w")┘${C_RESET}"
 }
 
 # ==============================================================================
@@ -118,8 +183,6 @@ function step_1_audit() {
     add_log "AUDIT" "Escaneando entorno de ejecución y herramientas..." "$C_BLUE"
     draw_screen 1 "[▶]" "[ ]" "[ ]" "[ ]" "[ ]" "Verificando dependencias del sistema..."
     sleep 0.3
-
-    local missing=0
 
     # 1. Nix / DevShell
     if [ -n "$IN_NIX_SHELL" ] || [ -f "/run/current-system/nixos-version" ] || command -v nix >/dev/null 2>&1; then
@@ -135,7 +198,6 @@ function step_1_audit() {
         add_log "GO" "Compilador Go listo: $go_ver" "$C_GREEN"
     else
         add_log "WARN" "Go no encontrado en PATH (se requerirá para build)." "$C_YELLOW"
-        missing=$((missing + 1))
     fi
 
     # 3. Node & Esbuild
@@ -154,7 +216,6 @@ function step_1_audit() {
         fi
     else
         add_log "WARN" "Tmux no está instalado en el sistema." "$C_RED"
-        missing=$((missing + 1))
     fi
 
     # 5. fzf & jq
@@ -289,17 +350,21 @@ function step_4_vaults() {
         fi
     done <<< "$selected_items"
 
-    # Modal de Confirmación
+    # Modal de Confirmación Responsive
+    local term_cols
+    term_cols=$(tput cols 2>/dev/null || echo 80)
+    local modal_w=$((term_cols - 4))
+    [ "$modal_w" -lt 60 ] && modal_w=60
+
     clear
-    echo -e "${C_BOLD}${C_CYAN}┌─────────────────── Confirmación de Vinculación de Vaults ───────────────────┐${C_RESET}"
-    echo -e "${C_BORDER}│                                                                             │${C_RESET}"
-    echo -e "${C_BORDER}│${C_RESET} ${C_BOLD}Se vinculará Obsitracer y se registrará la atención en los siguientes Vaults:${C_RESET}  ${C_BORDER}│${C_RESET}"
-    echo -e "${C_BORDER}│                                                                             │${C_RESET}"
+    echo -e "${C_BOLD}${C_CYAN}┌$(repeat_str "─" "$modal_w")┐${C_RESET}"
+    echo -e "${C_BORDER}│$(pad_cell " ${C_BOLD}Confirmación de Vinculación de Vaults${C_RESET}" "$modal_w")│${C_RESET}"
+    echo -e "${C_BORDER}├$(repeat_str "─" "$modal_w")┤${C_RESET}"
     for idx in "${!selected_names[@]}"; do
-        printf "${C_BORDER}│${C_RESET}   ${C_GREEN}• %-18s${C_RESET} ${C_DIM}(%s)${C_RESET}\n" "${selected_names[$idx]}" "${selected_paths[$idx]}"
+        local line="   ${C_GREEN}• ${selected_names[$idx]}${C_RESET} ${C_DIM}(${selected_paths[$idx]})${C_RESET}"
+        echo -e "${C_BORDER}│$(pad_cell "$line" "$modal_w")│${C_RESET}"
     done
-    echo -e "${C_BORDER}│                                                                             │${C_RESET}"
-    echo -e "${C_BOLD}${C_CYAN}└─────────────────────────────────────────────────────────────────────────────┘${C_RESET}"
+    echo -e "${C_BORDER}└$(repeat_str "─" "$modal_w")┘${C_RESET}"
     echo ""
     read -p "¿Proceder con la vinculación e instalación de symlinks? [S/n]: " confirm
     confirm=${confirm:-S}
@@ -405,4 +470,6 @@ function main() {
     echo ""
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
