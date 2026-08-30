@@ -1,71 +1,111 @@
-# Obsitracer
+# 🧠 Obsitracer
 
-Plugin de Obsidian + sistema de tracking cognitivo que alimenta a Antigravity con contexto en tiempo real sobre qué vault y nota tiene el usuario en foco.
+> **Cognitive Tracking & Real-Time Context Orchestrator**  
+> Conecta tus notas activas en **Obsidian** con tu terminal **Tmux** y el agente **Antigravity** en tiempo real.
 
-## Componentes
-- `cmd/obsitracer/` — CLI unificado en Go (TUI interactiva, selector, widget y hook PreInvocation).
-- `obsitracer/` — Plugin de Obsidian: trackea cursor, foco y CRUD. Empuja el foco activo a tmux vía canal reactivo.
-- `plugins/obsitracer/` — Plugin oficial de Antigravity (Hook PreInvocation + Skill `obsitracer-operator`).
-- `tmux/` — Plugin autónomo de Tmux (`~/.tmux/plugins/obsitracer`).
-- `flake.nix` — Entorno reproducible con orquestador integrado (`nix run`).
+---
 
-## Instalación
+## ⚡ Arquitectura y Componentes
 
-```bash
-# Instalación completa e interactiva con entorno aislado y creación de symlink (~/.local/bin/obsitracer):
-nix run
+Obsitracer elimina la fricción de sincronizar contexto entre tus notas y tu asistente AI:
 
-# O si ya tienes Go instalado en tu entorno:
-go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer
-./bin/obsitracer install
+```text
+┌───────────────────────────┐         ┌──────────────────────────────────────┐
+│  Obsidian (Vaults)        │ ──────> │  ~/.config/obsitracer/vaults/        │
+│  (Plugin TS: Foco + CRUD) │         │  (focus.json, crud.json, manifest)   │
+└───────────────────────────┘         └──────────────────┬───────────────────┘
+                                                         │
+                     ┌───────────────────────────────────┴───────────────────────────────────┐
+                     ▼                                                                       ▼
+      ┌─────────────────────────────┐                                         ┌─────────────────────────────┐
+      │  Tmux Plugin (~/.tmux/...)  │                                         │  Antigravity (PreInvocation)│
+      │  • Alt + o: Selector TUI    │                                         │  • Hook Go de micro-deltas  │
+      │  • Widget en Status Bar     │                                         │  • Skill obsitracer-operator│
+      └─────────────────────────────┘                                         └─────────────────────────────┘
 ```
 
-## tmux & Atención Dinámica
+- **`cmd/obsitracer/`** — CLI unificado en Go (`obsitracer`) con TUI interactiva (Huh/Lipgloss), selector flotante, widget de tmux y motor de hook.
+- **`obsitracer/`** — Plugin de Obsidian (TypeScript): monitorea cursor, cambios en notas (CRUD) y estado activo de forma reactiva.
+- **`plugins/obsitracer/`** — Plugin oficial para Antigravity (Hook `PreInvocation` ultrarrápido y Skill `obsitracer-operator`).
+- **`tmux/`** — Plugin autónomo de Tmux (`~/.tmux/plugins/obsitracer`) con keybindings globales (`Alt + o`).
+- **`flake.nix`** — Entorno declarativo y reproducible (`nix run` para instalación completa y `nix develop` para desarrollo).
 
-Obsitracer se integra de forma modular con tu barra de estado de tmux. La integración actual **depende visualmente del plugin `tmux-ukiyo`** (utilizando su API oficial de *Custom Plugins*). Esto permite que el widget herede el espaciado, los divisores y la paleta de colores del tema activo (ej. *TokyoNight*), ubicándose de forma nativa en la barra (por ejemplo, junto al módulo de git).
+---
 
-- **El script lógico** es independiente y reside en `~/.tmux/scripts/obsitracer.sh`. Este archivo es enlazado automáticamente por el instalador desde `tmux/obsitracer_widget.sh`.
-- **El renderizado visual** se delega a Ukiyo en tu configuración de estilos (ej. `~/.tmux/modules/style.conf`) insertando la ruta vía `custom:/ruta/al/script`.
+## 🚀 Instalación Rápida
 
-*(Nota arquitectónica: Si decides cambiar de motor de temas y abandonar Ukiyo, el widget dejará de renderizarse. En ese escenario, se requerirá refactorizar el instalador o forzar la inyección nativa con `set -ag status-right`).*
+### Opción 1: Con Nix Flakes (Recomendado)
+Ejecuta el orquestador interactivo en un entorno hermético con todas las dependencias (`go`, `esbuild`, `tmux`, `fzf`):
 
-### Activación y Foco local
-Tienes dos métodos para sintonizar el foco en el panel activo:
+```bash
+nix run
+```
 
-1. **Modo Interactivo (Recomendado):**
-   - Presiona `Alt + o` (directo sin prefijo) o `Ctrl+a -> o` en cualquier panel de tmux.
-   - Se abrirá un popup flotante con `fzf` mostrando tus vaults registrados y la opción de silenciar/apagar el foco.
+> **¿Qué hace `nix run`?**
+> 1. Compila el CLI unificado en Go (`bin/obsitracer`).
+> 2. Crea el enlace simbólico global en `~/.local/bin/obsitracer`.
+> 3. Lanza la TUI interactiva para seleccionar tus Vaults, compilar el plugin de Obsidian y registrar los plugins en Tmux y Antigravity.
 
-2. **Control Manual CLI:**
-   ```bash
-   # Sintonizar foco a un Vault
-   tmux set-option -p @obsitracer_target "MemorIA"
+---
 
-   # Apagar el foco en el panel
-   tmux set-option -p -u @obsitracer_target
-   ```
-*Nota: También puedes usar la skill `obsitracer-operator` desde Antigravity para delegar esta sintonización conversacionalmente.*
+### Opción 2: Entorno Nativo / Go Local
 
-### Personalización de Colores (TokyoNight)
-El color del widget se maneja a través de las variables de colores custom de Ukiyo. Por ejemplo, para usar el color naranja (`notice` en TokyoNight):
+```bash
+# Compilar CLI
+go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer
+
+# Enlazar a tu PATH
+ln -sf "$(pwd)/bin/obsitracer" ~/.local/bin/obsitracer
+
+# Ejecutar instalador interactivo
+obsitracer install
+```
+
+---
+
+## 🎛️ Comandos del CLI (`obsitracer`)
+
+Una vez instalado, tienes el comando `obsitracer` disponible globalmente:
+
+| Comando | Descripción |
+| :--- | :--- |
+| `obsitracer` / `obsitracer install` | Lanza el asistente interactivo TUI de instalación y sincronización. |
+| `obsitracer status` | Muestra el estado del sistema, vaults indexados y foco activo. |
+| `obsitracer select` | Abre el selector TUI interactivo para sintonizar el Vault en el panel actual. |
+| `obsitracer target <vault>` | Sintoniza directamente el foco del panel al Vault especificado. |
+| `obsitracer clear` | Silencia/apaga el foco de contexto en el panel actual. |
+| `obsitracer widget` | Genera la salida formateada para la barra de estado de Tmux. |
+| `obsitracer hook` | Ejecuta el hook PreInvocation de Antigravity (inyección de micro-deltas). |
+
+---
+
+## 🖥️ Integración con Tmux
+
+Obsitracer opera como un **plugin autónomo** instalado en `~/.tmux/plugins/obsitracer/`.
+
+### 1. Atajos de Teclado (Keybindings)
+- **`Alt + o`** (Directo, sin prefijo): Abre el selector flotante para sintonizar el Vault del panel activo.
+- **`Prefix + o`** (`Ctrl+a -> o`): Atajo alternativo con prefijo.
+
+### 2. Widget de Status Bar (Tema TokyoNight / Ukiyo)
+El widget de Obsitracer se integra de forma nativa en tu barra de estado de Tmux. Si utilizas el plugin `tmux-ukiyo`, puedes integrarlo en tus módulos de estilo (ej. `~/.tmux/modules/style.conf`):
+
 ```tmux
-# En ~/.tmux/modules/style.conf (o tu archivo de configuración de tmux):
+# En ~/.tmux/modules/style.conf:
 set -g @ukiyo-custom-plugin-colors "notice bg_pane"
 ```
 
-## Ubicación de las Configuraciones
+---
 
-Aquí tienes el mapa de archivos de configuración del sistema:
+## 📂 Mapa de Rutas y Configuración
 
-1. **Configuración de Tmux:**
-   - **Archivo raíz:** [~/.tmux.conf](file:///home/manu/.tmux.conf) (Modular).
-   - **Estilos y Plugins:** [~/.tmux/modules/style.conf](file:///home/manu/.tmux/modules/style.conf) (Donde se inyecta la variable `@ukiyo-plugins` para cargar el widget de forma dinámica).
-   - **Script del Widget:** [~/.tmux/scripts/obsitracer.sh](file:///home/manu/.tmux/scripts/obsitracer.sh) (Enlazado a `tmux/obsitracer_widget.sh`).
-2. **Configuración del Plugin Antigravity:**
-   - **Plugin instalado:** [~/.gemini/antigravity-cli/plugins/obsitracer](file:///home/manu/.gemini/antigravity-cli/plugins/obsitracer)
-   - **Hook PreInvocation:** [plugins/obsitracer/hooks.json](file:///home/manu/Documents/repositorios/Obsitracer/plugins/obsitracer/hooks.json)
-   - **Skill de Atención:** [plugins/obsitracer/skills/obsitracer-operator/SKILL.md](file:///home/manu/Documents/repositorios/Obsitracer/plugins/obsitracer/skills/obsitracer-operator/SKILL.md)
-3. **Estado de Vaults:**
-   - **Registro Global:** [~/.config/obsitracer/vaults.json](file:///home/manu/.config/obsitracer/vaults.json) (Mapea los nombres de vaults a sus rutas absolutas).
-   - **Buzones Temporales (CRUD/Foco):** En `~/.config/obsitracer/vaults/{NombreVault}/` (donde `focus.json` y `crud.json` se actualizan reactivamente).
+| Componente | Ubicación |
+| :--- | :--- |
+| **CLI Global** | [~/.local/bin/obsitracer](file:///home/manu/.local/bin/obsitracer) |
+| **Registro de Vaults** | [~/.config/obsitracer/vaults.json](file:///home/manu/.config/obsitracer/vaults.json) |
+| **Buzones Temporales** | `~/.config/obsitracer/vaults/{VaultName}/` (`focus.json`, `crud.json`) |
+| **Plugin de Tmux** | [~/.tmux/plugins/obsitracer/](file:///home/manu/.tmux/plugins/obsitracer) |
+| **Plugin Antigravity** | [~/.gemini/antigravity-cli/plugins/obsitracer/](file:///home/manu/.gemini/antigravity-cli/plugins/obsitracer) |
+| **Hook PreInvocation** | [plugins/obsitracer/hooks.json](file:///home/manu/Documents/repositorios/Obsitracer/plugins/obsitracer/hooks.json) |
+| **Skill de Operador** | [plugins/obsitracer/skills/obsitracer-operator/SKILL.md](file:///home/manu/Documents/repositorios/Obsitracer/plugins/obsitracer/skills/obsitracer-operator/SKILL.md) |
 
