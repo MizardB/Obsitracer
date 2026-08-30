@@ -27,7 +27,7 @@ if [ ! -f "$VAULTS_FILE" ]; then
     exit 0
 fi
 
-ENTRIES=$(jq -r '.[] | "\(.name)\t\(.path)"' "$VAULTS_FILE" 2>/dev/null || true)
+ENTRIES=$(jq -r '.[] | "📁 \(.name)\t(\(.path))"' "$VAULTS_FILE" 2>/dev/null || true)
 if [ -z "$ENTRIES" ]; then
     tmux display-message "Obsitracer: No hay vaults registrados en vaults.json"
     exit 0
@@ -35,16 +35,17 @@ fi
 
 CURRENT_TARGET=$(tmux show-option -p -t "$PANE_ID" -qv @obsitracer_target 2>/dev/null || true)
 CURRENT_STR="${CURRENT_TARGET:-Ninguno (Silenciado)}"
-HEADER_TEXT="Foco actual: $CURRENT_STR | [Enter] Seleccionar | [Esc] Cancelar"
+HEADER_TEXT="Foco actual: $CURRENT_STR  •  [Enter] Sintonizar  •  [Ctrl-X] Silenciar  •  [Esc] Salir"
 
 ITEMS=$(printf "[✕] Silenciar / Apagar foco\t(Desactiva inyección de contexto)\n%s" "$ENTRIES")
 
 SELECTED=$(echo "$ITEMS" | fzf \
     --prompt="🧠 Obsitracer > " \
     --header="$HEADER_TEXT" \
+    --expect=ctrl-x \
     --delimiter=$'\t' \
     --with-nth=1,2 \
-    --color="header:italic:cyan,prompt:bold:yellow" \
+    --color="header:italic:cyan,prompt:bold:yellow,pointer:bold:green" \
     --height=100% \
     --reverse) || true
 
@@ -52,13 +53,18 @@ if [ -z "$SELECTED" ]; then
     exit 0
 fi
 
-if [[ "$SELECTED" == *"[✕]"* ]]; then
+KEY=$(echo "$SELECTED" | head -n1)
+LINE=$(echo "$SELECTED" | tail -n1)
+
+if [ "$KEY" = "ctrl-x" ] || [[ "$LINE" == *"[✕]"* ]]; then
     tmux set-option -p -t "$PANE_ID" -u @obsitracer_target
     tmux display-message -t "$PANE_ID" "Obsitracer: Foco apagado en este panel"
 else
-    TARGET_NAME=$(echo "$SELECTED" | awk -F'\t' '{print $1}')
-    tmux set-option -p -t "$PANE_ID" @obsitracer_target "$TARGET_NAME"
-    tmux display-message -t "$PANE_ID" "Obsitracer: Foco sintonizado a [$TARGET_NAME]"
+    TARGET_NAME=$(echo "$LINE" | awk -F'\t' '{print $1}' | sed 's/📁 //; s/^[[:space:]]*//; s/[[:space:]]*$//')
+    if [ -n "$TARGET_NAME" ]; then
+        tmux set-option -p -t "$PANE_ID" @obsitracer_target "$TARGET_NAME"
+        tmux display-message -t "$PANE_ID" "Obsitracer: Foco sintonizado a [$TARGET_NAME]"
+    fi
 fi
 
 tmux refresh-client -S 2>/dev/null || true
