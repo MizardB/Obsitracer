@@ -9,15 +9,23 @@ import (
 	"time"
 )
 
-func GetTmuxTarget(paneID string) string {
-	pane := paneID
-	if pane == "" {
-		pane = os.Getenv("TMUX_PANE")
-		if pane == "" {
-			pane = "."
-		}
+func resolvePane(paneID string) string {
+	if paneID != "" {
+		return paneID
 	}
+	pane := os.Getenv("TMUX_PANE")
+	if pane != "" {
+		return pane
+	}
+	return "."
+}
 
+func IsInsideTmux() bool {
+	return os.Getenv("TMUX") != ""
+}
+
+func GetTmuxTarget(paneID string) string {
+	pane := resolvePane(paneID)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -40,5 +48,68 @@ func GetTmuxTarget(paneID string) string {
 		return strings.TrimSpace(out.String())
 	}
 
+	return ""
+}
+
+func SetTmuxTarget(paneID, target string) error {
+	pane := resolvePane(paneID)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", pane, "@obsitracer_target", target)
+	return cmd.Run()
+}
+
+func UnsetTmuxTarget(paneID string) error {
+	pane := resolvePane(paneID)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", pane, "-u", "@obsitracer_target")
+	return cmd.Run()
+}
+
+func RefreshClient() {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "tmux", "refresh-client", "-S")
+	_ = cmd.Run()
+}
+
+func DisplayMessage(paneID, message string) {
+	pane := resolvePane(paneID)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "tmux", "display-message", "-t", pane, message)
+	_ = cmd.Run()
+}
+
+func GetPaneCommand(paneID string) string {
+	pane := resolvePane(paneID)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", pane, "-F", "#{pane_current_command}")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err == nil {
+		return strings.TrimSpace(out.String())
+	}
+	return ""
+}
+
+func GetPanePath(paneID string) string {
+	pane := resolvePane(paneID)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", pane, "-F", "#{pane_current_path}")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err == nil {
+		return strings.TrimSpace(out.String())
+	}
 	return ""
 }

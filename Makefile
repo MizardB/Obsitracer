@@ -7,11 +7,15 @@ build:
 	@cd obsitracer && esbuild main.ts --bundle --platform=node --external:obsidian --external:electron --format=cjs --target=es2018 --outfile=main.js
 
 build-engine:
-	@echo "Compilando motor de alto rendimiento en Go (obsitracer-hook)..."
-	@mkdir -p plugins/obsitracer/bin
-	@go build -ldflags="-s -w" -o plugins/obsitracer/bin/obsitracer-hook ./cmd/obsitracer-hook
-	@chmod +x plugins/obsitracer/bin/obsitracer-hook
-	@echo "✅ Binario Go compilado en plugins/obsitracer/bin/obsitracer-hook"
+	@echo "Compilando CLI y motor de alto rendimiento en Go (obsitracer)..."
+	@mkdir -p plugins/obsitracer/bin bin
+	@go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer
+	@cp bin/obsitracer plugins/obsitracer/bin/obsitracer
+	@cp bin/obsitracer plugins/obsitracer/bin/obsitracer-hook
+	@chmod +x bin/obsitracer plugins/obsitracer/bin/obsitracer plugins/obsitracer/bin/obsitracer-hook
+	@mkdir -p ~/.local/bin
+	@ln -sf "$(CURDIR)/bin/obsitracer" ~/.local/bin/obsitracer
+	@echo "✅ Binario Go compilado e instalado en ~/.local/bin/obsitracer"
 
 test:
 	@echo "Ejecutando suite de tests unitarios en Go..."

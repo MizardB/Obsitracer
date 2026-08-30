@@ -29,6 +29,15 @@ func GetBaseConfigDir() string {
 	return filepath.Join(home, ".config", "obsitracer")
 }
 
+func GetVaultsRegistryPath() string {
+	return filepath.Join(GetBaseConfigDir(), "vaults.json")
+}
+
+type VaultEntry struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
 type FocusInfo struct {
 	File string `json:"file"`
 	Line int    `json:"line"`
