@@ -43,7 +43,6 @@ func scanForVaults() []string {
 			found = append(found, vaultPath)
 			return filepath.SkipDir
 		}
-		// Limitar profundidad a 4 niveles para evitar lentitud
 		rel, _ := filepath.Rel(searchRoot, path)
 		if stringsCount(rel, string(filepath.Separator)) > 3 {
 			return filepath.SkipDir
@@ -64,6 +63,17 @@ func stringsCount(s, substr string) int {
 	return count
 }
 
+func notifyStep(title, detail string, isOk bool) {
+	icon := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#9ece6a")).Render("  [✔]")
+	if !isOk {
+		icon = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#f7768e")).Render("  [✕]")
+	}
+	titleStyled := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#c0caf5")).Render(title)
+	detailStyled := lipgloss.NewStyle().Foreground(lipgloss.Color("#565f89")).Render(detail)
+
+	fmt.Printf("%s %s %s\n", icon, titleStyled, detailStyled)
+}
+
 func runInstallerTUI() {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -74,7 +84,7 @@ func runInstallerTUI() {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#414868")).
 		Padding(1, 2).
-		MarginBottom(1)
+		MarginTop(1)
 
 	successStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -85,7 +95,9 @@ func runInstallerTUI() {
 
 	fmt.Println(titleStyle.Render("🧠 OBSITRACER MASTER ORCHESTRATOR & INSTALLER"))
 
-	// 1. Escaneo de Vaults
+	// -------------------------------------------------------------------------
+	// ETAPA 1: Escaneo y Selección de Vaults
+	// -------------------------------------------------------------------------
 	var discoveredVaults []string
 	_ = spinner.New().
 		Title("Escaneando directorios en ~/Documents buscando Vaults de Obsidian...").
@@ -124,24 +136,45 @@ func runInstallerTUI() {
 	}
 
 	if len(selectedVaults) == 0 {
-		fmt.Println(dimStyle.Render("No se seleccionó ningún Vault."))
+		fmt.Println(dimStyle.Render("No se seleccionó ningún Vault. Cancelando."))
 		return
 	}
 
-	// 2. Proceso de compilación y despliegue
+	fmt.Println()
 	repoDir, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
 
-	err := spinner.New().
-		Title("Desplegando componentes (Plugin Tmux, Motor Go y Vaults)...").
+	// -------------------------------------------------------------------------
+	// ETAPA 2: Compilación de TypeScript (Plugin de Obsidian)
+	// -------------------------------------------------------------------------
+	var tsErr error
+	_ = spinner.New().
+		Title("Empaquetando plugin de Obsidian con esbuild...").
 		Action(func() {
-			// A. Empaquetar TypeScript
 			tsCmd := exec.Command("esbuild", "main.ts", "--bundle", "--platform=node", "--external:obsidian", "--external:electron", "--format=cjs", "--target=es2018", "--outfile=main.js")
 			tsCmd.Dir = filepath.Join(repoDir, "obsitracer")
-			_ = tsCmd.Run()
+			tsErr = tsCmd.Run()
+		}).
+		Run()
 
-			// B. Instalar Plugin autónomo de Tmux
-			tmuxPluginDir := filepath.Join(home, ".tmux", "plugins", "obsitracer")
+	if tsErr != nil {
+		notifyStep("Obsidian Plugin TS", "Error compilando main.ts", false)
+	} else {
+		notifyStep("Obsidian Plugin TS", "(obsitracer/main.js empaquetado)", true)
+	}
+
+	// -------------------------------------------------------------------------
+	// ETAPA 3: Instalación y Recarga de Tmux
+	// -------------------------------------------------------------------------
+	var tmuxAlreadyInstalled bool
+	tmuxPluginDir := filepath.Join(home, ".tmux", "plugins", "obsitracer")
+	if _, err := os.Stat(filepath.Join(tmuxPluginDir, "obsitracer.tmux")); err == nil {
+		tmuxAlreadyInstalled = true
+	}
+
+	_ = spinner.New().
+		Title("Desplegando y recargando Plugin autónomo de Tmux...").
+		Action(func() {
 			_ = os.MkdirAll(filepath.Join(tmuxPluginDir, "scripts"), 0755)
 			_ = os.Symlink(filepath.Join(repoDir, "tmux", "obsitracer.tmux"), filepath.Join(tmuxPluginDir, "obsitracer.tmux"))
 			_ = os.Symlink(filepath.Join(repoDir, "tmux", "scripts", "obsitracer.sh"), filepath.Join(tmuxPluginDir, "scripts", "obsitracer.sh"))
@@ -150,17 +183,47 @@ func runInstallerTUI() {
 			_ = os.Chmod(filepath.Join(tmuxPluginDir, "scripts", "obsitracer.sh"), 0755)
 			_ = os.Chmod(filepath.Join(tmuxPluginDir, "scripts", "obsitracer-select.sh"), 0755)
 
-			// C. Instalar Plugin en Antigravity
-			agyPluginDir := filepath.Join(home, ".gemini", "antigravity-cli", "plugins", "obsitracer")
-			geminiPluginDir := filepath.Join(home, ".gemini", "config", "plugins", "obsitracer")
+			// Recargar Tmux en caliente si el servidor está corriendo
+			if tmux.IsInsideTmux() {
+				_ = exec.Command("tmux", "run-shell", filepath.Join(tmuxPluginDir, "obsitracer.tmux")).Run()
+				tmux.RefreshClient()
+				tmux.DisplayMessage("", "Obsitracer: Plugin de Tmux recargado y activo")
+			}
+		}).
+		Run()
+
+	if tmuxAlreadyInstalled {
+		notifyStep("Plugin de Tmux", "(Actualizado, recargado y sintonizado en caliente)", true)
+	} else {
+		notifyStep("Plugin de Tmux", "(Instalado en ~/.tmux/plugins/obsitracer y cargado en vivo)", true)
+	}
+
+	// -------------------------------------------------------------------------
+	// ETAPA 4: Despliegue de Hook y Skill en Antigravity
+	// -------------------------------------------------------------------------
+	agyPluginDir := filepath.Join(home, ".gemini", "antigravity-cli", "plugins", "obsitracer")
+	geminiPluginDir := filepath.Join(home, ".gemini", "config", "plugins", "obsitracer")
+
+	_ = spinner.New().
+		Title("Vinculando Hook PreInvocation y Skill en Antigravity...").
+		Action(func() {
 			_ = os.MkdirAll(filepath.Dir(agyPluginDir), 0755)
 			_ = os.MkdirAll(filepath.Dir(geminiPluginDir), 0755)
 			_ = os.Remove(agyPluginDir)
 			_ = os.Remove(geminiPluginDir)
 			_ = os.Symlink(filepath.Join(repoDir, "plugins", "obsitracer"), agyPluginDir)
 			_ = os.Symlink(filepath.Join(repoDir, "plugins", "obsitracer"), geminiPluginDir)
+		}).
+		Run()
 
-			// D. Vincular Vaults y generar vaults.json
+	notifyStep("Antigravity Plugin", "(Hook PreInvocation y Skill obsitracer-operator registrados)", true)
+
+	// -------------------------------------------------------------------------
+	// ETAPA 5: Vinculación de Vaults y Registro JSON
+	// -------------------------------------------------------------------------
+	_ = spinner.New().
+		Title(fmt.Sprintf("Vinculando plugin en %d Vaults y creando buzones...", len(selectedVaults))).
+		Action(func() {
 			var entries []config.VaultEntry
 			for _, vPath := range selectedVaults {
 				vName := filepath.Base(vPath)
@@ -179,27 +242,21 @@ func runInstallerTUI() {
 			_ = os.MkdirAll(config.GetBaseConfigDir(), 0755)
 			rawJSON, _ := json.MarshalIndent(entries, "", "  ")
 			_ = os.WriteFile(config.GetVaultsRegistryPath(), rawJSON, 0644)
-
-			// E. Recargar Tmux si aplica
-			if tmux.IsInsideTmux() {
-				tmux.RefreshClient()
-			}
 		}).
 		Run()
 
-	if err != nil {
-		fmt.Printf("Error durante la instalación: %v\n", err)
-		return
-	}
+	notifyStep("Obsidian Vaults", fmt.Sprintf("(%d vaults vinculados e indexados en vaults.json)", len(selectedVaults)), true)
 
-	// 3. Banner de Éxito
-	summary := fmt.Sprintf("%s\n\n%s\n  • %s %s\n  • %s %s\n  • %s %s\n\n%s\n  • %s Registrados: %d vaults",
-		successStyle.Render("🎉 ¡Obsitracer se ha instalado y vinculado exitosamente!"),
+	// -------------------------------------------------------------------------
+	// RESUMEN FINAL
+	// -------------------------------------------------------------------------
+	summary := fmt.Sprintf("%s\n\n%s\n  • %s %s\n  • %s %s\n  • %s %s\n\n%s\n  • %s Registrados y activos: %d vaults",
+		successStyle.Render("🎉 ¡Obsitracer está 100% operativo y sincronizado!"),
 		titleStyle.Render("Atajos de Teclado:"),
-		lipgloss.NewStyle().Bold(true).Render("Alt + o"), dimStyle.Render("➔ Selector rápido en Tmux"),
+		lipgloss.NewStyle().Bold(true).Render("Alt + o"), dimStyle.Render("➔ Selector interactivo en Tmux"),
 		lipgloss.NewStyle().Bold(true).Render("Ctrl+a ➔ o"), dimStyle.Render("➔ Selector alternativo con prefijo"),
-		lipgloss.NewStyle().Bold(true).Render("obsitracer"), dimStyle.Render("➔ CLI para gestionar foco y estado"),
-		titleStyle.Render("Vaults Vinculados:"),
+		lipgloss.NewStyle().Bold(true).Render("obsitracer"), dimStyle.Render("➔ CLI para gestionar foco, target y estado"),
+		titleStyle.Render("Vaults Configurados:"),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#9ece6a")).Render("✔"), len(selectedVaults),
 	)
 
