@@ -193,9 +193,9 @@ func runInstallerTUI() {
 		Run()
 
 	if tmuxAlreadyInstalled {
-		notifyStep("Plugin de Tmux", "(Actualizado, recargado y sintonizado en caliente)", true)
+		notifyStep("Plugin de Tmux", "(Keybindings Alt+o y widget para tmux-ukiyo sincronizados en vivo)", true)
 	} else {
-		notifyStep("Plugin de Tmux", "(Instalado en ~/.tmux/plugins/obsitracer y cargado en vivo)", true)
+		notifyStep("Plugin de Tmux", "(Instalado en ~/.tmux/plugins/obsitracer y widget configurado)", true)
 	}
 
 	// -------------------------------------------------------------------------
