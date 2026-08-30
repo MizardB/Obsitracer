@@ -17,7 +17,7 @@
         default = {
           type = "app";
           program = "${pkgs.writeShellScriptBin "obsitracer-installer" ''
-            export PATH="${pkgs.lib.makeBinPath [ pkgs.bash pkgs.gnumake pkgs.nodejs pkgs.esbuild pkgs.jq pkgs.tmux pkgs.go ]}:$PATH"
+            export PATH="${pkgs.lib.makeBinPath [ pkgs.bash pkgs.gnumake pkgs.nodejs pkgs.esbuild pkgs.jq pkgs.fzf pkgs.tmux pkgs.go ]}:$PATH"
             exec ${pkgs.bash}/bin/bash ./install.sh "$@"
           ''}/bin/obsitracer-installer";
         };
@@ -30,6 +30,7 @@
             gnumake
             esbuild
             jq
+            fzf
             tmux
             go
           ];

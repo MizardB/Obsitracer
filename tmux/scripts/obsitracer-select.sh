@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# ==============================================================================
+# 🧠 Obsitracer - Interactive Vault Selector (fzf)
+# ==============================================================================
 set -eo pipefail
 
 export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:$PATH"
@@ -11,7 +14,7 @@ fi
 VAULTS_FILE="$HOME/.config/obsitracer/vaults.json"
 
 if [ ! -f "$VAULTS_FILE" ]; then
-    tmux display-message "Obsitracer: No se encontró $VAULTS_FILE"
+    tmux display-message "Obsitracer: No se encontró el registro de vaults ($VAULTS_FILE)"
     exit 0
 fi
 
@@ -24,7 +27,7 @@ else
 fi
 
 # Preparar opciones
-ENTRIES=$(jq -r '.[] | "\(.name)\t\(.path)"' "$VAULTS_FILE" 2>/dev/null)
+ENTRIES=$(jq -r '.[] | "\(.name)\t\(.path)"' "$VAULTS_FILE" 2>/dev/null || true)
 if [ -z "$ENTRIES" ]; then
     tmux display-message "Obsitracer: No hay vaults registrados en vaults.json"
     exit 0
