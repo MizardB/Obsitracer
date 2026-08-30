@@ -1,3 +1,6 @@
 plugins/obsitracer/bin/
 bin/
 .agents/
+plan.md
+*.plan.md
+scratch/

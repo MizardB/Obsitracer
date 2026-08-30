@@ -1,166 +1,166 @@
 # Obsitracer
 
+English | [Español](README.es.md)
+
 > Cognitive Tracking & Real-Time Context Orchestrator  
-> Conexión contextual pasiva y en tiempo real entre Obsidian, Tmux y tu agente de Inteligencia Artificial.
+> Passive, real-time contextual bridge between Obsidian, Tmux, and your AI agent.
 
 ---
 
-## El Problema
+## The Problem
 
-Obsidian es una de las herramientas más potentes para construir un segundo cerebro, documentar sistemas y gestionar conocimiento. Sin embargo, al colaborar con agentes de Inteligencia Artificial en la terminal (como Antigravity / Gemini CLI), la experiencia actual sufre de fricción constante:
+Obsidian is one of the most powerful tools for personal knowledge management, systems documentation, and second brains. However, when collaborating with terminal-based AI coding agents (such as Antigravity / Gemini CLI), current workflows suffer from severe friction:
 
-1. **La IA es ciega a tu contexto activo:** Si estás editando una nota o explorando un diagrama, el agente no sabe qué estás viendo. Tienes que copiar y pegar fragmentos manualmente o redactar prompts explicativos largos solo para ubicarlo (*"mira el archivo X dentro de la carpeta Y..."*).
-2. **RAG estático y costoso:** Los sistemas tradicionales de búsqueda o RAG leen archivos en bloque, consumen miles de tokens de contexto innecesarios y sufren de desfase con respecto a lo que acabas de escribir hace 5 segundos.
-3. **Falta de tacto:** La IA no tiene noción física de tu navegación: no sabe si cambiaste de archivo, en qué línea tienes puesto el cursor ni qué notas acabas de crear en tu sesión actual.
-
----
-
-## La Solución: Darle Tacto a la IA
-
-Obsitracer elimina por completo esta fricción otorgándole **presencia contextual pasiva** a tu agente:
-
-* **Rastreo Reactivo:** Un plugin ligero en TypeScript monitorea en segundo plano tu nota activa, la posición exacta del cursor (línea y columna) y las operaciones CRUD de archivos en tu Vault.
-* **Inyección Pre-Turno (< 2ms):** Justo antes de que el agente procese tu mensaje en la terminal, un hook en Go evalúa el delta de cambios y le inyecta a la IA únicamente lo que acaba de cambiar en tu editor.
-* **Cero Desperdicio de Tokens:** Si no tocaste nada en Obsidian entre turnos, el sistema no inyecta datos redundantes. Si cambiaste de nota o modificaste un párrafo, el agente lo sabe al instante sin que tengas que mencionarlo.
-* **Control Visual en Tmux:** Eliges qué Vault está sintonizado en cada panel de terminal mediante un popup flotante accesible con `Alt + o` y visualizas el archivo activo directamente en tu barra de estado.
+1. **AI is blind to your active context:** When editing a note or exploring a diagram, the AI agent has no awareness of what you are viewing. You are forced to manually copy-paste snippets or write verbose prompts just to provide orientation (*"look at file X inside folder Y..."*).
+2. **Static and expensive RAG:** Traditional search or retrieval systems ingest entire file trees in bulk, waste thousands of context tokens on unedited content, and suffer from latency lag with respect to edits made seconds ago.
+3. **Lack of tactile presence:** The AI has no physical sense of your navigation: it does not know if you switched active tabs, which line holds your cursor, or what notes you created during your current session.
 
 ---
 
-## Requisitos del Sistema
+## The Solution: Giving AI Tactile Awareness
 
-Antes de instalar Obsitracer, asegúrate de contar con los siguientes componentes:
+Obsitracer completely eliminates this friction by giving your terminal AI agent **passive contextual awareness**:
 
-| Componente | Requisito Mínimo | Propósito |
+* **Reactive Tracking:** A lightweight TypeScript plugin runs in the background of Obsidian, monitoring active notes, precise cursor position (line and column), and file CRUD events.
+* **Pre-Turn Hook Injection (< 2ms):** Right before your AI agent processes any prompt in the terminal, a Go pre-invocation hook evaluates active file deltas and injects only recent modifications into the agent's context.
+* **Zero Token Waste:** If you did not modify files between prompt turns, Obsitracer sends a silent payload. If you changed notes or edited a paragraph, the AI receives the exact diff instantly.
+* **Visual Control in Tmux:** Select which Obsidian vault is tracked in each terminal pane using a floating popup (`Alt + o`) and view active note status badges directly in your Tmux status bar.
+
+---
+
+## System Requirements
+
+Before installing Obsitracer, ensure you have the following prerequisites:
+
+| Component | Minimum Version | Purpose |
 | :--- | :--- | :--- |
-| **Sistema Operativo** | Linux (NixOS, Arch, Ubuntu, Fedora, etc.) o macOS | Soporte de sockets y llamadas atómicas POSIX. |
-| **Obsidian** | v1.5.0 o superior | Entorno de notas con la opción *Community Plugins* habilitada. |
-| **Tmux** | v3.2 o superior | Manejo de paneles de terminal, popup interactivo (`Alt + o`) y widgets. |
-| **Antigravity CLI / AGY** | v1.0.0 o superior | Agente de IA que consume el hook `PreInvocation`. |
-| **Entorno de Compilación** | **Nix Flakes** (Recomendado) o **Go 1.22+ y Node/esbuild** | Compilación hermética e instalación de binarios. |
+| **Operating System** | Linux (NixOS, Arch, Ubuntu, Fedora, etc.) or macOS | POSIX atomic IPC and file descriptor support. |
+| **Obsidian** | v1.5.0 or higher | Knowledge base frontend with *Community Plugins* enabled. |
+| **Tmux** | v3.2 or higher | Terminal multiplexer, floating popup selector (`Alt + o`), and status widget. |
+| **Antigravity CLI / AGY** | v1.0.0 or higher | AI agent consuming the `PreInvocation` hook. |
+| **Build Environment** | **Nix Flakes** (Recommended) or **Go 1.22+ and Node/esbuild** | Hermetic compilation and binary deployment. |
 
 ---
 
-## Instalación Rápida
+## Quick Installation
 
-### Opción 1: Con Nix Flakes (Recomendado)
+### Option 1: Using Nix Flakes (Recommended)
 
-Si utilizas Nix, ejecuta el orquestador interactivo en un entorno hermético:
+If you use Nix, run the interactive orchestrator in a hermetic environment:
 
 ```bash
 nix run
 ```
 
-Este comando:
-1. Compila automáticamente el motor en Go (`obsitracer`).
-2. Empaqueta el plugin de TypeScript con `esbuild`.
-3. Crea el enlace simbólico global en `~/.local/bin/obsitracer`.
-4. Abre la interfaz TUI para seleccionar tus Vaults y configurar Tmux y Antigravity en vivo.
+This single command:
+1. Compiles the Go engine (`obsitracer`).
+2. Bundles the Obsidian TypeScript plugin with `esbuild`.
+3. Creates the global symlink at `~/.local/bin/obsitracer`.
+4. Launches the interactive TUI to discover your vaults and link Tmux and Antigravity plugins.
 
 ---
 
-### Opción 2: Compilación Manual con Go
+### Option 2: Native Go Compilation
 
-Si prefieres compilar de forma nativa:
+To build and install manually:
 
 ```bash
-# 1. Clonar el repositorio
+# 1. Clone repository
 git clone https://github.com/MizardB/Obsitracer.git
 cd Obsitracer
 
-# 2. Compilar el plugin de Obsidian
+# 2. Build Obsidian plugin
 cd obsitracer
 npm install
 npm run build
 cd ..
 
-# 3. Compilar el CLI de Go
+# 3. Compile Go CLI
 go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer
 
-# 4. Crear enlace simbólico en tu PATH
+# 4. Symlink to PATH
 ln -sf "$(pwd)/bin/obsitracer" ~/.local/bin/obsitracer
 
-# 5. Ejecutar el asistente de instalación interactivo
+# 5. Run interactive installer
 obsitracer install
 ```
 
 ---
 
-## Manual de Uso Diario
+## Daily Workflow Manual
 
-El flujo de trabajo con Obsitracer está diseñado para ser completamente transparente:
+Obsitracer is designed to operate completely transparently:
 
-### 1. Trabaja en Obsidian con normalidad
-Abre tu Vault en Obsidian y escribe, crea notas, renombra archivos o navega por tu estructura. El plugin registrará internamente tus movimientos con debouncing de baja latencia sin interferir con el rendimiento del editor.
+### 1. Work in Obsidian Normally
+Open your vault in Obsidian. Edit notes, create documents, organize folders, or write code snippets. The plugin records navigation events with sub-millisecond debouncing without impacting editor performance.
 
-### 2. Sintoniza el Vault en tu terminal
-En cualquier panel de Tmux donde vayas a interactuar con tu asistente:
-* Presiona `Alt + o` para abrir el selector flotante.
-* Usa las flechas para elegir el Vault que deseas conectar a ese panel y presiona `Enter`.
-* Para salir sin hacer cambios, presiona `Esc` o `q`.
-* Para desactivar la atención en ese panel, selecciona `[✕] Silenciar / Apagar foco`.
+### 2. Tune Vault in Your Terminal Pane
+In any Tmux pane where you plan to interact with your AI assistant:
+* Press `Alt + o` to open the interactive popup selector.
+* Select the target vault with arrow keys and press `Enter`.
+* To exit without modifying focus, press `Esc` or `q`.
+* To silence context injection in that pane, select `[✕] Silenciar / Apagar foco`.
 
-En la barra de estado de Tmux aparecerá de inmediato el indicador en vivo:
+Your Tmux status bar will immediately display the live badge:
 ```text
-[👓 MiVault/NotaActiva.md]
+[👓 MyVault/ActiveNote.md]
 ```
 
-### 3. Habla con tu agente de IA
-Abre tu agente en la terminal (`agy`) y hazle cualquier consulta directa. Por ejemplo:
-* *"¿Cómo resumirías lo que acabo de redactar?"*
-* *"Corrige la sintaxis del bloque de código que tengo abierto."*
-* *"Genera las conclusiones a partir de los puntos que escribí arriba."*
+### 3. Talk to Your AI Agent
+Open your agent in the terminal (`agy`) and prompt it directly:
+* *"Summarize what I just wrote."*
+* *"Fix the syntax in the code block I am currently viewing."*
+* *"Generate conclusion points based on the list above."*
 
-El agente ya sabrá en qué archivo estás, en qué línea tienes puesto el cursor y qué notas modificaste recientemente, respondiendo con contexto preciso y sin preámbulos.
+The AI already knows which file is open, where your cursor is positioned, and what content was recently edited.
 
 ---
 
-## Comandos del CLI (`obsitracer`)
+## CLI Reference (`obsitracer`)
 
-El binario global `obsitracer` provee utilidades directas para scripts, atajos y diagnóstico:
+The global binary `obsitracer` provides utility commands for automation, scripts, and diagnostic inspection:
 
-| Comando | Descripción |
+| Command | Description |
 | :--- | :--- |
-| `obsitracer` / `obsitracer install` | Abre el instalador interactivo TUI para vincular o actualizar Vaults. |
-| `obsitracer status` | Muestra el estado del sistema, Vaults registrados y la nota activa en tiempo real. |
-| `obsitracer select` | Lanza el selector flotante TUI en el panel actual de Tmux. |
-| `obsitracer target <vault_name>` | Sintoniza directamente el panel actual al Vault indicado. |
-| `obsitracer clear` | Apaga y silencia la inyección de contexto en el panel actual. |
-| `obsitracer widget` | Genera la salida formateada del badge para la status bar de Tmux. |
-| `obsitracer hook` | Ejecuta el hook PreInvocation consumido internamente por el agente de IA. |
+| `obsitracer` / `obsitracer install` | Launches the interactive TUI installer to link or update vaults. |
+| `obsitracer status` | Displays system status, registered vaults, and real-time active focus. |
+| `obsitracer select` | Opens the floating TUI vault selector for the current Tmux pane. |
+| `obsitracer target <vault_name>` | Sets the target vault for the current Tmux pane. |
+| `obsitracer clear` | Clears and silences context tracking in the current pane. |
+| `obsitracer widget` | Generates formatted badge output for the Tmux status bar. |
+| `obsitracer hook` | Executes the PreInvocation hook consumed by the AI agent. |
 
 ---
 
-## Atajos de Teclado en Tmux
+## Tmux Keybindings
 
-| Atajo | Acción |
+| Keybinding | Action |
 | :--- | :--- |
-| `Alt + o` | Abre el selector interactivo flotante de Vaults en el panel activo. |
-| `Prefix + O` | Atajo secundario con prefijo de Tmux (`Ctrl+a -> O` / `Ctrl+b -> O`). |
-| `Esc` / `q` | Cancela y cierra el selector flotante conservando el foco actual. |
+| `Alt + o` | Opens floating interactive vault selector for current pane. |
+| `Prefix + O` | Secondary keybinding with Tmux prefix (`Ctrl+a -> O` / `Ctrl+b -> O`). |
+| `Esc` / `q` | Cancels and closes popup selector while preserving current target. |
 
 ---
 
-## Filosofía del Proyecto y Contribuciones
+## Philosophy and Contributing
 
-Obsitracer es un proyecto *opinionated* de autor, concebido y optimizado para flujos de trabajo terminal-first de alta eficiencia:
-* **Entorno principal:** Linux / NixOS con Tmux.
-* **Agente AI objetivo:** Antigravity / Gemini CLI (mediante hooks PreInvocation).
-* **Frontend de notas:** Obsidian.
+Obsitracer is an opinionated project designed and optimized for terminal-first developer workflows:
+* **Primary Environment:** Linux / NixOS with Tmux.
+* **Target AI Agent:** Antigravity / Gemini CLI (via PreInvocation hooks).
+* **Knowledge Frontend:** Obsidian.
 
-### Contribuciones y Pull Requests
-Las contribuciones de la comunidad son bienvenidas, especialmente en:
-* Soporte e integraciones con nuevos agentes de IA por terminal.
-* Optimizaciones en el bundle y ciclo de eventos del plugin de Obsidian.
-* Correcciones de bugs y compatibilidad con otros entornos POSIX.
+### Pull Requests and Extensions
+Community contributions are welcome, particularly for:
+* Integrations with additional terminal-based AI agents.
+* Performance optimizations in the Obsidian event loop and bundling.
+* Compatibility improvements across POSIX platforms.
 
-**Requisitos para Pull Requests:**
-1. **Conventional Commits:** Todo commit debe seguir el estándar (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`).
-2. **Revisión Asistida:** Los Pull Requests se evalúan y prueban de forma asíncrona mediante workflows de auditoría con IA antes de integrarse en la rama principal.
+**Contribution Requirements:**
+1. **Conventional Commits:** All commits must follow Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`).
+2. **Asynchronous Review:** Pull Requests are evaluated asynchronously with AI audit tooling before merging into the main branch.
 
 ---
 
-## Licencia
+## License
 
-Este proyecto está distribuido bajo la licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más detalles.
-
-
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
