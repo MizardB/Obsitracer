@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"obsitracer/internal/config"
 	"obsitracer/internal/tmux"
@@ -23,6 +24,50 @@ var installCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		runInstallerTUI()
 	},
+}
+
+func resolveRepoDir() string {
+	// 1. Verificar ubicación del ejecutable siguiendo symlinks
+	if exe, err := os.Executable(); err == nil {
+		if eval, err := filepath.EvalSymlinks(exe); err == nil {
+			dir := filepath.Dir(eval)
+			if filepath.Base(dir) == "bin" {
+				candidate := filepath.Dir(dir)
+				if filepath.Base(candidate) == "obsitracer" && filepath.Base(filepath.Dir(candidate)) == "plugins" {
+					candidate = filepath.Dir(filepath.Dir(candidate))
+				}
+				if _, err := os.Stat(filepath.Join(candidate, "obsitracer", "main.ts")); err == nil {
+					return candidate
+				}
+			}
+		}
+	}
+
+	// 2. Verificar git rev-parse --show-toplevel
+	if out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+		gitRoot := strings.TrimSpace(string(out))
+		if _, err := os.Stat(filepath.Join(gitRoot, "obsitracer", "main.ts")); err == nil {
+			return gitRoot
+		}
+	}
+
+	// 3. Directorio de trabajo actual
+	if cwd, err := os.Getwd(); err == nil {
+		if _, err := os.Stat(filepath.Join(cwd, "obsitracer", "main.ts")); err == nil {
+			return cwd
+		}
+	}
+
+	// 4. Ubicación estándar en el workspace del usuario
+	if home, err := os.UserHomeDir(); err == nil {
+		stdPath := filepath.Join(home, "Documents", "repositorios", "Obsitracer")
+		if _, err := os.Stat(filepath.Join(stdPath, "obsitracer", "main.ts")); err == nil {
+			return stdPath
+		}
+	}
+
+	cwd, _ := os.Getwd()
+	return cwd
 }
 
 func scanForVaults() []string {
@@ -44,23 +89,13 @@ func scanForVaults() []string {
 			return filepath.SkipDir
 		}
 		rel, _ := filepath.Rel(searchRoot, path)
-		if stringsCount(rel, string(filepath.Separator)) > 3 {
+		if strings.Count(rel, string(filepath.Separator)) > 3 {
 			return filepath.SkipDir
 		}
 		return nil
 	})
 
 	return found
-}
-
-func stringsCount(s, substr string) int {
-	count := 0
-	for i := 0; i < len(s); i++ {
-		if string(s[i]) == substr {
-			count++
-		}
-	}
-	return count
 }
 
 func notifyStep(title, detail string, isOk bool) {
@@ -141,26 +176,46 @@ func runInstallerTUI() {
 	}
 
 	fmt.Println()
-	repoDir, _ := os.Getwd()
+	repoDir := resolveRepoDir()
 	home, _ := os.UserHomeDir()
 
 	// -------------------------------------------------------------------------
 	// ETAPA 2: Compilación de TypeScript (Plugin de Obsidian)
 	// -------------------------------------------------------------------------
-	var tsErr error
+	var tsBuilt bool
+	var tsBundled bool
+	mainJsPath := filepath.Join(repoDir, "obsitracer", "main.js")
+	mainTsPath := filepath.Join(repoDir, "obsitracer", "main.ts")
+
 	_ = spinner.New().
-		Title("Empaquetando plugin de Obsidian con esbuild...").
+		Title("Verificando y empaquetando plugin de Obsidian con esbuild...").
 		Action(func() {
-			tsCmd := exec.Command("esbuild", "main.ts", "--bundle", "--platform=node", "--external:obsidian", "--external:electron", "--format=cjs", "--target=es2018", "--outfile=main.js")
-			tsCmd.Dir = filepath.Join(repoDir, "obsitracer")
-			tsErr = tsCmd.Run()
+			if _, err := exec.LookPath("esbuild"); err == nil {
+				tsCmd := exec.Command("esbuild", "main.ts", "--bundle", "--platform=node", "--external:obsidian", "--external:electron", "--format=cjs", "--target=es2018", "--outfile=main.js")
+				tsCmd.Dir = filepath.Join(repoDir, "obsitracer")
+				if err := tsCmd.Run(); err == nil {
+					tsBuilt = true
+					tsBundled = true
+					return
+				}
+			}
+			// Si esbuild no está disponible en PATH o falló, verificar si ya existe main.js
+			if _, err := os.Stat(mainJsPath); err == nil {
+				tsBuilt = true
+				tsBundled = false
+				return
+			}
 		}).
 		Run()
 
-	if tsErr != nil {
-		notifyStep("Obsidian Plugin TS", "Error compilando main.ts", false)
+	if tsBuilt {
+		if tsBundled {
+			notifyStep("Obsidian Plugin TS", "(obsitracer/main.js empaquetado con esbuild)", true)
+		} else {
+			notifyStep("Obsidian Plugin TS", "(usando obsitracer/main.js precompilado)", true)
+		}
 	} else {
-		notifyStep("Obsidian Plugin TS", "(obsitracer/main.js empaquetado)", true)
+		notifyStep("Obsidian Plugin TS", fmt.Sprintf("Error compilando main.ts (no existe %s)", mainTsPath), false)
 	}
 
 	// -------------------------------------------------------------------------
@@ -176,6 +231,9 @@ func runInstallerTUI() {
 		Title("Desplegando y recargando Plugin autónomo de Tmux...").
 		Action(func() {
 			_ = os.MkdirAll(filepath.Join(tmuxPluginDir, "scripts"), 0755)
+			_ = os.Remove(filepath.Join(tmuxPluginDir, "obsitracer.tmux"))
+			_ = os.Remove(filepath.Join(tmuxPluginDir, "scripts", "obsitracer.sh"))
+			_ = os.Remove(filepath.Join(tmuxPluginDir, "scripts", "obsitracer-select.sh"))
 			_ = os.Symlink(filepath.Join(repoDir, "tmux", "obsitracer.tmux"), filepath.Join(tmuxPluginDir, "obsitracer.tmux"))
 			_ = os.Symlink(filepath.Join(repoDir, "tmux", "scripts", "obsitracer.sh"), filepath.Join(tmuxPluginDir, "scripts", "obsitracer.sh"))
 			_ = os.Symlink(filepath.Join(repoDir, "tmux", "scripts", "obsitracer-select.sh"), filepath.Join(tmuxPluginDir, "scripts", "obsitracer-select.sh"))

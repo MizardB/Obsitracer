@@ -25,8 +25,8 @@
 
             echo "📦 Compilando CLI unificado de Obsitracer en Go..."
             (cd "$REPO_DIR" && go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer)
-            cp "$REPO_DIR/bin/obsitracer" "$REPO_DIR/plugins/obsitracer/bin/obsitracer"
-            chmod +x "$REPO_DIR/bin/obsitracer" "$REPO_DIR/plugins/obsitracer/bin/obsitracer"
+            ln -sf "$REPO_DIR/bin/obsitracer" "$REPO_DIR/plugins/obsitracer/bin/obsitracer"
+            chmod +x "$REPO_DIR/bin/obsitracer"
 
             echo "🔗 Creando enlace simbólico en ~/.local/bin/obsitracer..."
             ln -sf "$REPO_DIR/bin/obsitracer" "$HOME/.local/bin/obsitracer"
