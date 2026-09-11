@@ -23,8 +23,8 @@
             REPO_DIR="$(pwd)"
             mkdir -p "$REPO_DIR/bin" "$REPO_DIR/plugins/obsitracer/bin" "$HOME/.local/bin"
 
-            echo "📦 Compilando CLI unificado de Obsitracer en Go..."
-            (cd "$REPO_DIR" && go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer)
+            echo "📦 Compilando CLI unificado de Obsitracer en Go (estático)..."
+            (cd "$REPO_DIR" && CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer)
             ln -sf "$REPO_DIR/bin/obsitracer" "$REPO_DIR/plugins/obsitracer/bin/obsitracer"
             chmod +x "$REPO_DIR/bin/obsitracer"
 

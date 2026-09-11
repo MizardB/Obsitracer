@@ -75,8 +75,8 @@ npm install
 npm run build
 cd ..
 
-# 3. Compile Go CLI
-go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer
+# 3. Compile Go CLI (static binary)
+CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/obsitracer ./cmd/obsitracer
 
 # 4. Symlink to PATH
 ln -sf "$(pwd)/bin/obsitracer" ~/.local/bin/obsitracer

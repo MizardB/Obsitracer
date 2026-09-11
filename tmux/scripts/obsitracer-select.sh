@@ -10,13 +10,13 @@ if [ -z "$PANE_ID" ] || [ "$PANE_ID" = "#{pane_id}" ]; then
 fi
 
 # 1. Intentar con CLI unificado en Go (Huh / Charm)
-if command -v obsitracer >/dev/null 2>&1; then
+if command -v obsitracer >/dev/null 2>&1 && obsitracer --help >/dev/null 2>&1; then
     exec obsitracer select -p "$PANE_ID"
 fi
 
 # 2. Fallback binario local
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-if [ -x "$SCRIPT_DIR/../../bin/obsitracer" ]; then
+if [ -x "$SCRIPT_DIR/../../bin/obsitracer" ] && "$SCRIPT_DIR/../../bin/obsitracer" --help >/dev/null 2>&1; then
     exec "$SCRIPT_DIR/../../bin/obsitracer" select -p "$PANE_ID"
 fi
 
