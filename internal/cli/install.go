@@ -257,14 +257,14 @@ func runInstallerTUI() {
 	}
 
 	// -------------------------------------------------------------------------
-	// ETAPA 4: Despliegue de Hook, Skill y CLI Global
+	// ETAPA 4: Despliegue de Hook, Regla Sensorial y CLI Global
 	// -------------------------------------------------------------------------
 	agyPluginDir := filepath.Join(home, ".gemini", "antigravity-cli", "plugins", "obsitracer")
 	geminiPluginDir := filepath.Join(home, ".gemini", "config", "plugins", "obsitracer")
 	localBinDir := filepath.Join(home, ".local", "bin")
 
 	_ = spinner.New().
-		Title("Vinculando Hook PreInvocation, Skill y CLI Global...").
+		Title("Vinculando Hook PreInvocation, Regla Sensorial y CLI Global...").
 		Action(func() {
 			_ = os.MkdirAll(filepath.Dir(agyPluginDir), 0755)
 			_ = os.MkdirAll(filepath.Dir(geminiPluginDir), 0755)
@@ -306,16 +306,12 @@ func runInstallerTUI() {
 				_ = os.WriteFile(configHooksPath, encoded, 0644)
 			}
 
-			// Symlink de la Skill en ~/.gemini/config/skills/obsitracer-operator
-			globalSkillsDir := filepath.Join(home, ".gemini", "config", "skills")
-			_ = os.MkdirAll(globalSkillsDir, 0755)
-			skillTarget := filepath.Join(globalSkillsDir, "obsitracer-operator")
-			_ = os.Remove(skillTarget)
-			_ = os.Symlink(filepath.Join(repoDir, "plugins", "obsitracer", "skills", "obsitracer-operator"), skillTarget)
+			// Limpiar residuo de la skill antigua en ~/.gemini/config/skills/obsitracer-operator si existiera
+			_ = os.Remove(filepath.Join(home, ".gemini", "config", "skills", "obsitracer-operator"))
 		}).
 		Run()
 
-	notifyStep("Antigravity Plugin", "(Hook PreInvocation y Skill obsitracer-operator registrados)", true)
+	notifyStep("Antigravity Plugin", "(Hook PreInvocation y Regla Sensorial Always-On registrados)", true)
 	notifyStep("CLI Global", "(Symlink ~/.local/bin/obsitracer creado en PATH)", true)
 
 	// -------------------------------------------------------------------------
