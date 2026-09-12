@@ -18,7 +18,7 @@
           type = "app";
           program = "${pkgs.writeShellScriptBin "obsitracer-setup" ''
             set -eo pipefail
-            export PATH="${pkgs.lib.makeBinPath [ pkgs.bash pkgs.nodejs pkgs.esbuild pkgs.jq pkgs.fzf pkgs.tmux pkgs.go ]}:$HOME/.local/bin:$PATH"
+            export PATH="${pkgs.lib.makeBinPath [ pkgs.bash pkgs.nodejs pkgs.esbuild pkgs.jq pkgs.fzf pkgs.tmux pkgs.kitty pkgs.go ]}:$HOME/.local/bin:$PATH"
 
             REPO_DIR="$(pwd)"
             mkdir -p "$REPO_DIR/bin" "$REPO_DIR/plugins/obsitracer/bin" "$HOME/.local/bin"
@@ -44,6 +44,7 @@
             jq
             fzf
             tmux
+            kitty
             go
           ];
 

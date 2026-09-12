@@ -8,7 +8,7 @@ import (
 
 	"obsitracer/internal/config"
 	"obsitracer/internal/mailbox"
-	"obsitracer/internal/tmux"
+	"obsitracer/internal/terminal"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -32,12 +32,12 @@ var statusCmd = &cobra.Command{
 
 		fmt.Println(titleStyle.Render("🧠 OBSITRACER - ESTADO DEL SISTEMA"))
 
-		// 1. Foco en Tmux
-		target := tmux.GetTmuxTarget("")
+		termType := terminal.GetTerminalType()
+		target := terminal.GetTarget("")
 		if target == "" {
-			fmt.Printf("%s %s\n", headerStyle.Render("Foco activo en Tmux:"), dimStyle.Render("Ninguno (Silenciado)"))
+			fmt.Printf("%s [%s] %s\n", headerStyle.Render("Foco activo:"), termType, dimStyle.Render("Ninguno (Silenciado)"))
 		} else {
-			fmt.Printf("%s %s\n", headerStyle.Render("Foco activo en Tmux:"), okStyle.Render(target))
+			fmt.Printf("%s [%s] %s\n", headerStyle.Render("Foco activo:"), termType, okStyle.Render(target))
 		}
 
 		// 2. Vaults registrados

@@ -1,15 +1,12 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"obsitracer/internal/config"
 	"obsitracer/internal/mailbox"
-	"obsitracer/internal/tmux"
+	"obsitracer/internal/terminal"
 
 	"github.com/spf13/cobra"
 )
@@ -18,26 +15,9 @@ var widgetPaneID string
 
 var widgetCmd = &cobra.Command{
 	Use:   "widget",
-	Short: "Genera el badge de estado para la barra de Tmux",
+	Short: "Genera el badge de estado para la barra de estado (Kitty / Tmux)",
 	Run: func(cmd *cobra.Command, args []string) {
-		targetVault := tmux.GetTmuxTarget(widgetPaneID)
-
-		if targetVault == "" {
-			panePath := tmux.GetPanePath(widgetPaneID)
-			registryPath := config.GetVaultsRegistryPath()
-			raw, err := os.ReadFile(registryPath)
-			if err == nil && len(raw) > 0 {
-				var vaults []config.VaultEntry
-				if json.Unmarshal(raw, &vaults) == nil {
-					for _, v := range vaults {
-						if strings.HasPrefix(panePath, v.Path) {
-							targetVault = v.Name
-							break
-						}
-					}
-				}
-			}
-		}
+		targetVault := terminal.GetTarget(widgetPaneID)
 
 		if targetVault == "" {
 			return

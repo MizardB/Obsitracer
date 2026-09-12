@@ -33,6 +33,14 @@ func GetVaultsRegistryPath() string {
 	return filepath.Join(GetBaseConfigDir(), "vaults.json")
 }
 
+func GetCurrentTargetPath() string {
+	return filepath.Join(GetBaseConfigDir(), "current_target")
+}
+
+func GetTargetsDir() string {
+	return filepath.Join(GetBaseConfigDir(), "targets")
+}
+
 type VaultEntry struct {
 	Name string `json:"name"`
 	Path string `json:"path"`

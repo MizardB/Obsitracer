@@ -12,7 +12,7 @@ import (
 	"obsitracer/internal/formatter"
 	"obsitracer/internal/mailbox"
 	"obsitracer/internal/scanner"
-	"obsitracer/internal/tmux"
+	"obsitracer/internal/terminal"
 
 	"github.com/spf13/cobra"
 )
@@ -46,7 +46,7 @@ var hookCmd = &cobra.Command{
 		conversationID := hookInput.ConversationID
 		invocationNum := hookInput.InvocationNum
 
-		targetVault := tmux.GetTmuxTarget("")
+		targetVault := terminal.GetTarget("")
 		if targetVault == "" {
 			outputPayload("")
 			return

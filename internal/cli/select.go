@@ -9,35 +9,81 @@ import (
 	"strings"
 
 	"obsitracer/internal/config"
-	"obsitracer/internal/tmux"
+	"obsitracer/internal/terminal"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 )
 
-var selectPaneID string
+var (
+	selectPaneID    string
+	selectTabID     string
+	selectWindowIDs string
+)
+
+func applySelectTarget(selectedName string) {
+	if selectedName == "" {
+		return
+	}
+	_ = terminal.SetTarget(selectPaneID, selectedName)
+	if selectTabID != "" {
+		_ = terminal.SetTabTarget(selectTabID, selectedName)
+	}
+	if selectWindowIDs != "" {
+		for _, wid := range strings.Split(selectWindowIDs, ",") {
+			w := strings.TrimSpace(wid)
+			if w != "" {
+				_ = terminal.SetTarget(w, selectedName)
+			}
+		}
+	}
+	terminal.DisplayMessage(selectPaneID, fmt.Sprintf("Obsitracer: Foco sintonizado a [%s]", selectedName))
+}
+
+func clearSelectTarget() {
+	_ = terminal.ClearTarget(selectPaneID)
+	if selectTabID != "" {
+		_ = terminal.ClearTabTarget(selectTabID)
+	}
+	if selectWindowIDs != "" {
+		for _, wid := range strings.Split(selectWindowIDs, ",") {
+			w := strings.TrimSpace(wid)
+			if w != "" {
+				_ = terminal.ClearTarget(w)
+			}
+		}
+	}
+	terminal.DisplayMessage(selectPaneID, "Obsitracer: Foco apagado")
+}
 
 var selectCmd = &cobra.Command{
 	Use:   "select",
-	Short: "Abre el selector interactivo TUI para sintonizar el Vault activo en Tmux",
+	Short: "Abre el selector interactivo TUI para sintonizar el Vault activo (Kitty / Tmux)",
 	Run: func(cmd *cobra.Command, args []string) {
 		registryPath := config.GetVaultsRegistryPath()
 		raw, err := os.ReadFile(registryPath)
 		if err != nil || len(raw) == 0 {
-			tmux.DisplayMessage(selectPaneID, "Obsitracer: No hay vaults registrados en "+registryPath)
+			terminal.DisplayMessage(selectPaneID, "Obsitracer: No hay vaults registrados en "+registryPath)
 			fmt.Println("No se encontró el registro de vaults.")
 			return
 		}
 
 		var vaults []config.VaultEntry
 		if err := json.Unmarshal(raw, &vaults); err != nil || len(vaults) == 0 {
-			tmux.DisplayMessage(selectPaneID, "Obsitracer: No hay vaults válidos registrados")
+			terminal.DisplayMessage(selectPaneID, "Obsitracer: No hay vaults válidos registrados")
 			fmt.Println("No hay vaults registrados.")
 			return
 		}
 
-		currentTarget := tmux.GetTmuxTarget(selectPaneID)
+		currentTarget := ""
+		if selectTabID != "" {
+			currentTarget = terminal.GetTabTarget(selectTabID)
+		}
+		if currentTarget == "" {
+			currentTarget = terminal.GetTarget(selectPaneID)
+		}
 		currentTargetDisplay := currentTarget
 		if currentTargetDisplay == "" {
 			currentTargetDisplay = "Ninguno (Silenciado)"
@@ -63,6 +109,13 @@ func runFZFSelect(vaults []config.VaultEntry, currentTarget, currentTargetDispla
 
 	header := fmt.Sprintf("Foco actual: %s  •  [Enter] Sintonizar  •  [Ctrl-X] Silenciar  •  [Esc] Salir", currentTargetDisplay)
 
+	margin := "8%,15%"
+	padding := "1"
+	if w, _, err := term.GetSize(os.Stdout.Fd()); err == nil && w <= 95 {
+		margin = "0,1"
+		padding = "0,1"
+	}
+
 	fzfCmd := exec.Command("fzf",
 		"--prompt=🧠 Obsitracer > ",
 		"--header="+header,
@@ -70,8 +123,13 @@ func runFZFSelect(vaults []config.VaultEntry, currentTarget, currentTargetDispla
 		"--delimiter=\t",
 		"--with-nth=1,2",
 		"--reverse",
-		"--height=100%",
-		"--color=header:italic:cyan,prompt:bold:yellow,pointer:bold:green",
+		"--border=rounded",
+		"--border-label= 🧠 Obsitracer — Sintonizar Vault ",
+		"--border-label-pos=3",
+		"--margin="+margin,
+		"--padding="+padding,
+		"--info=inline",
+		"--color=border:#7aa2f7,label:bold:#bb9af7,header:italic:#7dcfff,prompt:bold:#e0af68,pointer:bold:#9ece6a,hl:#bb9af7,hl+:#7dcfff",
 	)
 
 	fzfCmd.Stdin = strings.NewReader(sb.String())
@@ -100,9 +158,7 @@ func runFZFSelect(vaults []config.VaultEntry, currentTarget, currentTargetDispla
 	}
 
 	if keyPress == "ctrl-x" || strings.HasPrefix(selectedLine, "[✕]") {
-		_ = tmux.UnsetTmuxTarget(selectPaneID)
-		tmux.RefreshClient()
-		tmux.DisplayMessage(selectPaneID, "Obsitracer: Foco apagado en este panel")
+		clearSelectTarget()
 		return
 	}
 
@@ -111,9 +167,7 @@ func runFZFSelect(vaults []config.VaultEntry, currentTarget, currentTargetDispla
 	selectedName = strings.TrimSpace(selectedName)
 
 	if selectedName != "" {
-		_ = tmux.SetTmuxTarget(selectPaneID, selectedName)
-		tmux.RefreshClient()
-		tmux.DisplayMessage(selectPaneID, fmt.Sprintf("Obsitracer: Foco sintonizado a [%s]", selectedName))
+		applySelectTarget(selectedName)
 	}
 }
 
@@ -155,16 +209,14 @@ func runHuhSelect(vaults []config.VaultEntry, currentTarget, currentTargetDispla
 	}
 
 	if selected == "__CLEAR__" {
-		_ = tmux.UnsetTmuxTarget(selectPaneID)
-		tmux.RefreshClient()
-		tmux.DisplayMessage(selectPaneID, "Obsitracer: Foco apagado en este panel")
+		clearSelectTarget()
 	} else {
-		_ = tmux.SetTmuxTarget(selectPaneID, selected)
-		tmux.RefreshClient()
-		tmux.DisplayMessage(selectPaneID, fmt.Sprintf("Obsitracer: Foco sintonizado a [%s]", selected))
+		applySelectTarget(selected)
 	}
 }
 
 func init() {
-	selectCmd.Flags().StringVarP(&selectPaneID, "pane", "p", "", "ID del panel de Tmux (por defecto: panel actual)")
+	selectCmd.Flags().StringVarP(&selectPaneID, "pane", "p", "", "ID del panel de Tmux o ventana de Kitty")
+	selectCmd.Flags().StringVarP(&selectTabID, "tab", "t", "", "ID de la pestaña de Kitty")
+	selectCmd.Flags().StringVar(&selectWindowIDs, "windows", "", "Lista de IDs de ventanas en la pestaña (separadas por coma)")
 }

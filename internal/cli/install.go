@@ -219,17 +219,65 @@ func runInstallerTUI() {
 	}
 
 	// -------------------------------------------------------------------------
-	// ETAPA 3: Instalación y Recarga de Tmux
+	// ETAPA 3: Integración de Terminal (Kitty / Tmux)
 	// -------------------------------------------------------------------------
-	var tmuxAlreadyInstalled bool
-	tmuxPluginDir := filepath.Join(home, ".tmux", "plugins", "obsitracer")
-	if _, err := os.Stat(filepath.Join(tmuxPluginDir, "obsitracer.tmux")); err == nil {
-		tmuxAlreadyInstalled = true
-	}
+	var kittyConfigured bool
+	kittyDir := filepath.Join(home, ".config", "kitty")
+	kittyConfPath := filepath.Join(kittyDir, "kitty.conf")
+	kittyModulesDir := filepath.Join(kittyDir, "modules")
 
 	_ = spinner.New().
-		Title("Desplegando y recargando Plugin autónomo de Tmux...").
+		Title("Configurando plugins de terminal (Kitty & Tmux)...").
 		Action(func() {
+			// 1. Integración con Kitty (Módulo y Widget Tab Bar)
+			if _, err := os.Stat(kittyDir); err == nil {
+				// Desplegar módulo de keybindings/config
+				if _, err := os.Stat(kittyModulesDir); err == nil {
+					modDest := filepath.Join(kittyModulesDir, "obsitracer.conf")
+					_ = os.Remove(modDest)
+					_ = os.Symlink(filepath.Join(repoDir, "kitty", "obsitracer.conf"), modDest)
+				} else {
+					pluginsDir := filepath.Join(kittyDir, "plugins")
+					_ = os.MkdirAll(pluginsDir, 0755)
+					modDest := filepath.Join(pluginsDir, "obsitracer.conf")
+					_ = os.Remove(modDest)
+					_ = os.Symlink(filepath.Join(repoDir, "kitty", "obsitracer.conf"), modDest)
+				}
+
+				// Desplegar widget en tab_bar.py
+				tabBarDest := filepath.Join(kittyDir, "tab_bar.py")
+				_ = os.Remove(tabBarDest)
+				_ = os.Symlink(filepath.Join(repoDir, "kitty", "tab_bar.py"), tabBarDest)
+
+				// Desplegar kitten obsitracer_select.py para popup tab-wide
+				kittenDest := filepath.Join(kittyDir, "obsitracer_select.py")
+				_ = os.Remove(kittenDest)
+				_ = os.Symlink(filepath.Join(repoDir, "kitty", "obsitracer_select.py"), kittenDest)
+
+				// Registrar include en kitty.conf de forma limpia y declarativa
+				if confRaw, err := os.ReadFile(kittyConfPath); err == nil {
+					confStr := string(confRaw)
+					if !strings.Contains(confStr, "obsitracer.conf") {
+						includeLine := "include modules/obsitracer.conf\n"
+						if strings.Contains(confStr, "include modules/keybindings.conf") {
+							newConf := strings.Replace(confStr, "include modules/keybindings.conf\n", "include modules/keybindings.conf\n"+includeLine, 1)
+							_ = os.WriteFile(kittyConfPath, []byte(newConf), 0644)
+						} else {
+							f, err := os.OpenFile(kittyConfPath, os.O_APPEND|os.O_WRONLY, 0644)
+							if err == nil {
+								_, _ = f.WriteString("\n# --- Obsitracer Plugin ---\n" + includeLine)
+								_ = f.Close()
+							}
+						}
+					}
+				}
+
+				kittyConfigured = true
+				_ = exec.Command("kitty", "@", "load-config").Run()
+			}
+
+			// 2. Integración con Tmux
+			tmuxPluginDir := filepath.Join(home, ".tmux", "plugins", "obsitracer")
 			_ = os.MkdirAll(filepath.Join(tmuxPluginDir, "scripts"), 0755)
 			_ = os.Remove(filepath.Join(tmuxPluginDir, "obsitracer.tmux"))
 			_ = os.Remove(filepath.Join(tmuxPluginDir, "scripts", "obsitracer.sh"))
@@ -250,11 +298,10 @@ func runInstallerTUI() {
 		}).
 		Run()
 
-	if tmuxAlreadyInstalled {
-		notifyStep("Plugin de Tmux", "(Keybindings Alt+o y widget para tmux-ukiyo sincronizados en vivo)", true)
-	} else {
-		notifyStep("Plugin de Tmux", "(Instalado en ~/.tmux/plugins/obsitracer y widget configurado)", true)
+	if kittyConfigured {
+		notifyStep("Integración Kitty", "(Overlay interactivo Alt+o vinculado y activo)", true)
 	}
+	notifyStep("Plugin de Tmux", "(Keybindings Alt+o y widget para tmux-ukiyo configurados)", true)
 
 	// -------------------------------------------------------------------------
 	// ETAPA 4: Despliegue de Hook, Regla Sensorial y CLI Global

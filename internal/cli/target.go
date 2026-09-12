@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"obsitracer/internal/tmux"
+	"obsitracer/internal/terminal"
 
 	"github.com/spf13/cobra"
 )
@@ -16,23 +16,22 @@ var (
 
 var targetCmd = &cobra.Command{
 	Use:   "target [vault_name]",
-	Short: "Sintoniza o consulta el Vault objetivo en el panel actual de Tmux",
+	Short: "Sintoniza o consulta el Vault objetivo en el entorno actual (Kitty / Tmux)",
 	Run: func(cmd *cobra.Command, args []string) {
 		if clearTarget {
-			if err := tmux.UnsetTmuxTarget(targetPaneID); err != nil {
+			if err := terminal.ClearTarget(targetPaneID); err != nil {
 				fmt.Println("Error al apagar el foco:", err)
 				return
 			}
-			tmux.RefreshClient()
-			tmux.DisplayMessage(targetPaneID, "Obsitracer: Foco apagado en este panel")
+			terminal.DisplayMessage(targetPaneID, "Obsitracer: Foco apagado")
 			fmt.Println("Foco apagado.")
 			return
 		}
 
 		if len(args) == 0 {
-			currentTarget := tmux.GetTmuxTarget(targetPaneID)
+			currentTarget := terminal.GetTarget(targetPaneID)
 			if currentTarget == "" {
-				fmt.Println("Ningún foco activo en este panel.")
+				fmt.Println("Ningún foco activo en este panel/ventana.")
 			} else {
 				fmt.Printf("Foco actual: %s\n", currentTarget)
 			}
@@ -40,27 +39,25 @@ var targetCmd = &cobra.Command{
 		}
 
 		vaultName := strings.TrimSpace(args[0])
-		if err := tmux.SetTmuxTarget(targetPaneID, vaultName); err != nil {
+		if err := terminal.SetTarget(targetPaneID, vaultName); err != nil {
 			fmt.Println("Error al sintonizar foco:", err)
 			return
 		}
 
-		tmux.RefreshClient()
-		tmux.DisplayMessage(targetPaneID, fmt.Sprintf("Obsitracer: Foco sintonizado a [%s]", vaultName))
+		terminal.DisplayMessage(targetPaneID, fmt.Sprintf("Obsitracer: Foco sintonizado a [%s]", vaultName))
 		fmt.Printf("Foco sintonizado a [%s].\n", vaultName)
 	},
 }
 
 var clearCmd = &cobra.Command{
 	Use:   "clear",
-	Short: "Apaga / silencia el foco de atención en el panel actual de Tmux",
+	Short: "Apaga / silencia el foco de atención en el entorno actual (Kitty / Tmux)",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := tmux.UnsetTmuxTarget(targetPaneID); err != nil {
+		if err := terminal.ClearTarget(targetPaneID); err != nil {
 			fmt.Println("Error al apagar el foco:", err)
 			return
 		}
-		tmux.RefreshClient()
-		tmux.DisplayMessage(targetPaneID, "Obsitracer: Foco apagado en este panel")
+		terminal.DisplayMessage(targetPaneID, "Obsitracer: Foco apagado")
 		fmt.Println("Foco apagado.")
 	},
 }

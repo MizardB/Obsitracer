@@ -4,3 +4,5 @@ bin/
 plan.md
 *.plan.md
 scratch/
+__pycache__/
+*.pyc
