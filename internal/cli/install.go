@@ -391,14 +391,56 @@ func runInstallerTUI() {
 	notifyStep("Obsidian Vaults", fmt.Sprintf("(%d vaults vinculados e indexados en vaults.json)", len(selectedVaults)), true)
 
 	// -------------------------------------------------------------------------
+	// ETAPA 6: Inyección de shell trap para limpieza al cerrar terminal
+	// -------------------------------------------------------------------------
+	var shellsPatched []string
+	_ = spinner.New().
+		Title("Configurando trap de limpieza en shell (zsh/bash)...").
+		Action(func() {
+			trapBlock := `
+# --- Obsitracer: limpiar foco al cerrar terminal ---
+[[ -n "$KITTY_WINDOW_ID" ]] && trap 'obsitracer clear 2>/dev/null' EXIT
+`
+			marker := "obsitracer clear 2>/dev/null"
+			for _, rcFile := range []string{
+				filepath.Join(home, ".zshrc"),
+				filepath.Join(home, ".bashrc"),
+			} {
+				data, err := os.ReadFile(rcFile)
+				if err != nil {
+					continue // no existe ese rc file
+				}
+				if strings.Contains(string(data), marker) {
+					shellsPatched = append(shellsPatched, filepath.Base(rcFile)+" (ya configurado)")
+					continue
+				}
+				f, err := os.OpenFile(rcFile, os.O_APPEND|os.O_WRONLY, 0644)
+				if err != nil {
+					continue
+				}
+				_, _ = f.WriteString(trapBlock)
+				_ = f.Close()
+				shellsPatched = append(shellsPatched, filepath.Base(rcFile))
+			}
+		}).
+		Run()
+
+	if len(shellsPatched) > 0 {
+		notifyStep("Shell Trap", fmt.Sprintf("(trap EXIT inyectado en: %s)", strings.Join(shellsPatched, ", ")), true)
+	} else {
+		notifyStep("Shell Trap", "(ningún rc file encontrado o ya configurado)", false)
+	}
+
+	// -------------------------------------------------------------------------
 	// RESUMEN FINAL
 	// -------------------------------------------------------------------------
-	summary := fmt.Sprintf("%s\n\n%s\n  • %s %s\n  • %s %s\n  • %s %s\n\n%s\n  • %s Registrados y activos: %d vaults",
+	summary := fmt.Sprintf("%s\n\n%s\n  • %s %s\n  • %s %s\n  • %s %s\n  • %s %s\n\n%s\n  • %s Registrados y activos: %d vaults",
 		successStyle.Render("🎉 ¡Obsitracer está 100% operativo y sincronizado!"),
 		titleStyle.Render("Atajos de Teclado:"),
 		lipgloss.NewStyle().Bold(true).Render("Alt + o"), dimStyle.Render("➔ Selector interactivo en Tmux"),
 		lipgloss.NewStyle().Bold(true).Render("Ctrl+a ➔ o"), dimStyle.Render("➔ Selector alternativo con prefijo"),
 		lipgloss.NewStyle().Bold(true).Render("obsitracer"), dimStyle.Render("➔ CLI para gestionar foco, target y estado"),
+		lipgloss.NewStyle().Bold(true).Render("trap EXIT"), dimStyle.Render("➔ Limpieza automática de targets al cerrar Kitty (zsh/bash)"),
 		titleStyle.Render("Vaults Configurados:"),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#9ece6a")).Render("✔"), len(selectedVaults),
 	)

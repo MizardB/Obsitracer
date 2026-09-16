@@ -38,4 +38,5 @@ func init() {
 	rootCmd.AddCommand(clearCmd)
 	rootCmd.AddCommand(widgetCmd)
 	rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(purgeCmd)
 }

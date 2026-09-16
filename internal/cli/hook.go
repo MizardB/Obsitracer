@@ -81,7 +81,12 @@ var hookCmd = &cobra.Command{
 			(now-lastTS > config.SessionTimeoutSeconds)
 
 		if isNewSession {
-			// Modo Inter-Sesión: Escaneo de árbol y diff estructural
+			// Modo Inter-Sesión: Purga targets de ventanas muertas en el primer turno
+			if invocationNum == 1 {
+				terminal.PurgeStaleTargets()
+			}
+
+			// Escaneo de árbol y diff estructural
 			currentTree := scanner.ScanDirtree(vaultPath)
 			prevTree, isFirstRun := mailbox.LoadManifest(manifestFile)
 			diff := differ.CalculateStructuralDiff(currentTree, prevTree, isFirstRun)

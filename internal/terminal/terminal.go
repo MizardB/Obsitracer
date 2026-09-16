@@ -3,7 +3,6 @@ package terminal
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -68,29 +67,9 @@ func GetTarget(paneOrWinID string) string {
 		return t
 	}
 
-	// 4. Inferencia por coincidencia de ruta actual (CWD)
-	var currentPath string
-	if IsInsideTmux() {
-		currentPath = tmux.GetPanePath(paneOrWinID)
-	}
-	if currentPath == "" {
-		currentPath, _ = os.Getwd()
-	}
-
-	if currentPath != "" {
-		registryPath := config.GetVaultsRegistryPath()
-		if raw, err := os.ReadFile(registryPath); err == nil && len(raw) > 0 {
-			var vaults []config.VaultEntry
-			if json.Unmarshal(raw, &vaults) == nil {
-				for _, v := range vaults {
-					if strings.HasPrefix(currentPath, v.Path) {
-						return v.Name
-					}
-				}
-			}
-		}
-	}
-
+	// Nota: La inferencia por CWD fue eliminada intencionalmente.
+	// El usuario debe sintonizar explícitamente con Alt+o para evitar
+	// asignaciones silenciosas al abrir nuevas terminales.
 	return ""
 }
 
