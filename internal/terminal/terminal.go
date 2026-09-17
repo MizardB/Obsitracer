@@ -35,20 +35,17 @@ func GetTerminalType() string {
 	return "standalone"
 }
 
-// GetTarget resuelve el Vault activo con fallback jerárquico ultra-rápido:
-// 1. Target en Tmux (si está activo)
-// 2. Target específico de ventana Kitty (~/.config/obsitracer/targets/kitty-<id>)
-// 3. Target global persistido (~/.config/obsitracer/current_target)
-// 4. Inferencia por coincidencia de ruta actual (CWD vs vaults.json)
+// GetTarget resuelve el Vault activo con aislamiento estricto por terminal:
+// 1. Target en Tmux: sólo retorna si el panel/ventana está sintonizado. Silencio ("") por defecto.
+// 2. Target en Kitty: sólo retorna si la ventana específica está sintonizada. Silencio ("") por defecto.
+// 3. Fallback a target global persistido: SÓLO en modo standalone (sin multiplexor).
 func GetTarget(paneOrWinID string) string {
-	// 1. Si estamos dentro de Tmux, consultar variable de panel/ventana
+	// 1. Si estamos dentro de Tmux, consultar exclusivamente variable de panel/ventana
 	if IsInsideTmux() {
-		if t := tmux.GetTmuxTarget(paneOrWinID); t != "" {
-			return t
-		}
+		return tmux.GetTmuxTarget(paneOrWinID)
 	}
 
-	// 2. Si estamos en Kitty, consultar buzón de ventana específica
+	// 2. Si estamos en Kitty, consultar exclusivamente buzón de ventana específica
 	if IsInsideKitty() {
 		winID := paneOrWinID
 		if winID == "" {
@@ -56,21 +53,13 @@ func GetTarget(paneOrWinID string) string {
 		}
 		if winID != "" {
 			winTargetFile := filepath.Join(config.GetTargetsDir(), fmt.Sprintf("kitty-%s", winID))
-			if t := readTrimmedFile(winTargetFile); t != "" {
-				return t
-			}
+			return readTrimmedFile(winTargetFile)
 		}
+		return ""
 	}
 
-	// 3. Fallback a target global de sesión
-	if t := readTrimmedFile(config.GetCurrentTargetPath()); t != "" {
-		return t
-	}
-
-	// Nota: La inferencia por CWD fue eliminada intencionalmente.
-	// El usuario debe sintonizar explícitamente con Alt+o para evitar
-	// asignaciones silenciosas al abrir nuevas terminales.
-	return ""
+	// 3. Fallback a target global persistido sólo en modo standalone
+	return readTrimmedFile(config.GetCurrentTargetPath())
 }
 
 // SetTarget establece el Vault activo tanto a nivel global como en el entorno terminal específico.
@@ -78,8 +67,10 @@ func SetTarget(paneOrWinID, target string) error {
 	targetsDir := config.GetTargetsDir()
 	_ = os.MkdirAll(targetsDir, 0755)
 
-	// Siempre sincronizar target global
-	_ = os.WriteFile(config.GetCurrentTargetPath(), []byte(target), 0644)
+	// Sincronizar target global en modo standalone
+	if !IsInsideKitty() && !IsInsideTmux() {
+		_ = os.WriteFile(config.GetCurrentTargetPath(), []byte(target), 0644)
+	}
 
 	// Si estamos en Kitty, registrar buzón local y actualizar user_vars
 	if IsInsideKitty() {
@@ -105,7 +96,9 @@ func SetTarget(paneOrWinID, target string) error {
 
 // ClearTarget limpia el Vault activo tanto a nivel global como local.
 func ClearTarget(paneOrWinID string) error {
-	_ = os.Remove(config.GetCurrentTargetPath())
+	if !IsInsideKitty() && !IsInsideTmux() {
+		_ = os.Remove(config.GetCurrentTargetPath())
+	}
 
 	if IsInsideKitty() {
 		winID := paneOrWinID

@@ -72,3 +72,31 @@ func TestKittyWindowTargetResolution(t *testing.T) {
 		t.Fatalf("Expected Academico from kitty window, got: %s", got)
 	}
 }
+
+func TestKittyWindowNoTargetDefaultSilence(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "obsitracer-term-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", tempDir)
+
+	origKittyID := os.Getenv("KITTY_WINDOW_ID")
+	defer os.Setenv("KITTY_WINDOW_ID", origKittyID)
+
+	// Simular target global persistido en disco (de otra sesión/terminal)
+	_ = os.MkdirAll(config.GetBaseConfigDir(), 0755)
+	_ = os.WriteFile(config.GetCurrentTargetPath(), []byte("Cortex"), 0644)
+
+	// Simular ventana nueva de Kitty donde NO se ha seleccionado target
+	os.Setenv("KITTY_WINDOW_ID", "99")
+
+	got := GetTarget("")
+	if got != "" {
+		t.Fatalf("Expected silence ('') in new kitty window, got: %s", got)
+	}
+}
+
