@@ -27,17 +27,42 @@ type kittyWindow struct {
 	ID int `json:"id"`
 }
 
+var kittyStartTimeProvider = getKittyStartTimeReal
+
+func getKittyStartTimeReal() (time.Time, bool) {
+	pid := os.Getenv("KITTY_PID")
+	if pid == "" {
+		listen := os.Getenv("KITTY_LISTEN_ON")
+		if idx := strings.LastIndex(listen, "-"); idx != -1 {
+			pid = listen[idx+1:]
+		}
+	}
+	if pid == "" {
+		return time.Time{}, false
+	}
+	fi, err := os.Stat(filepath.Join("/proc", pid))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return fi.ModTime(), true
+}
+
+// GetKittyStartTime retorna la fecha de inicio del proceso de Kitty actual.
+func GetKittyStartTime() (time.Time, bool) {
+	return kittyStartTimeProvider()
+}
+
 // PurgeStaleTargets elimina archivos de target de ventanas/pestañas de Kitty
-// que ya no existen en la sesión activa. Retorna el número de archivos purgados.
-// Si no puede consultar Kitty (timeout, sin socket), retorna 0 sin purgar nada
-// para evitar falsos positivos.
+// que ya no existen en la sesión activa o que provienen de instancias anteriores de Kitty.
+// Retorna el número de archivos purgados.
 func PurgeStaleTargets() int {
 	if !IsInsideKitty() {
 		return 0
 	}
 
+	kittyStartTime, hasKittyStart := GetKittyStartTime()
 	windowIDs, tabIDs := getKittyActiveIDs()
-	if windowIDs == nil && tabIDs == nil {
+	if windowIDs == nil && tabIDs == nil && !hasKittyStart {
 		return 0
 	}
 
@@ -54,18 +79,32 @@ func PurgeStaleTargets() int {
 			continue
 		}
 
-		var alive bool
-		if strings.HasPrefix(name, "kitty-tab-") {
-			id := strings.TrimPrefix(name, "kitty-tab-")
-			_, alive = tabIDs[id]
-		} else {
-			id := strings.TrimPrefix(name, "kitty-")
-			_, alive = windowIDs[id]
+		filePath := filepath.Join(targetsDir, name)
+		fi, err := e.Info()
+		if err == nil && hasKittyStart && fi.ModTime().Before(kittyStartTime) {
+			_ = os.Remove(filePath)
+			purged++
+			continue
 		}
 
-		if !alive {
-			_ = os.Remove(filepath.Join(targetsDir, name))
-			purged++
+		if windowIDs != nil || tabIDs != nil {
+			var alive bool
+			if strings.HasPrefix(name, "kitty-tab-") {
+				id := strings.TrimPrefix(name, "kitty-tab-")
+				if tabIDs != nil {
+					_, alive = tabIDs[id]
+				}
+			} else {
+				id := strings.TrimPrefix(name, "kitty-")
+				if windowIDs != nil {
+					_, alive = windowIDs[id]
+				}
+			}
+
+			if !alive {
+				_ = os.Remove(filePath)
+				purged++
+			}
 		}
 	}
 	return purged

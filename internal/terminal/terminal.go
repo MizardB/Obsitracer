@@ -53,7 +53,7 @@ func GetTarget(paneOrWinID string) string {
 		}
 		if winID != "" {
 			winTargetFile := filepath.Join(config.GetTargetsDir(), fmt.Sprintf("kitty-%s", winID))
-			return readTrimmedFile(winTargetFile)
+			return readTrimmedKittyTarget(winTargetFile)
 		}
 		return ""
 	}
@@ -125,7 +125,7 @@ func GetTabTarget(tabID string) string {
 		return ""
 	}
 	tabTargetFile := filepath.Join(config.GetTargetsDir(), fmt.Sprintf("kitty-tab-%s", tabID))
-	return readTrimmedFile(tabTargetFile)
+	return readTrimmedKittyTarget(tabTargetFile)
 }
 
 // SetTabTarget persiste el target a nivel de pestaña de Kitty.
@@ -155,6 +155,18 @@ func DisplayMessage(paneOrWinID, message string) {
 		return
 	}
 	fmt.Println(message)
+}
+
+func readTrimmedKittyTarget(path string) string {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	if kittyStart, ok := GetKittyStartTime(); ok && fi.ModTime().Before(kittyStart) {
+		_ = os.Remove(path)
+		return ""
+	}
+	return readTrimmedFile(path)
 }
 
 func readTrimmedFile(path string) string {

@@ -46,6 +46,10 @@ var hookCmd = &cobra.Command{
 		conversationID := hookInput.ConversationID
 		invocationNum := hookInput.InvocationNum
 
+		if invocationNum <= 1 {
+			terminal.PurgeStaleTargets()
+		}
+
 		targetVault := terminal.GetTarget("")
 		if targetVault == "" {
 			outputPayload("")
