@@ -9,6 +9,8 @@ import (
 const (
 	SessionTimeoutSeconds int64 = 1800
 	MaxItemsDisplay             = 8
+	MaxDiffLinesPerFile         = 10
+	MaxTotalDiffLines           = 15
 )
 
 var IgnoredDirs = map[string]bool{
@@ -70,6 +72,12 @@ func (f FocusInfo) ToSignature() string {
 type FileMeta struct {
 	Mtime int64 `json:"mtime"`
 	Size  int64 `json:"size"`
+}
+
+type FileChangeEvent struct {
+	Op   string   `json:"op"`
+	Path string   `json:"path"`
+	Diff []string `json:"diff,omitempty"`
 }
 
 type StructuralDiff struct {

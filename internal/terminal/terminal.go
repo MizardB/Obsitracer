@@ -53,6 +53,11 @@ func cleanSessionID(sessionID string) string {
 	return cleaned
 }
 
+// CleanSessionID sanitiza un ID de sesión para su uso seguro en nombres de archivos.
+func CleanSessionID(sessionID string) string {
+	return cleanSessionID(sessionID)
+}
+
 // GetSessionTarget obtiene el target configurado para una sesión específica (ej. Pi Coding Agent).
 func GetSessionTarget(sessionID string) string {
 	if strings.TrimSpace(sessionID) == "" {
@@ -87,6 +92,49 @@ func ClearSessionTarget(sessionID string) error {
 	return nil
 }
 
+// GetKittyWindowTarget obtiene el target configurado para una ventana específica de Kitty.
+func GetKittyWindowTarget(winID string) string {
+	if winID == "" {
+		return ""
+	}
+	winTargetFile := filepath.Join(config.GetTargetsDir(), fmt.Sprintf("kitty-%s", winID))
+	return readTrimmedKittyTarget(winTargetFile)
+}
+
+// GetKittyWindowSession obtiene el ID de sesión registrado para una ventana de Kitty.
+func GetKittyWindowSession(winID string) string {
+	if winID == "" {
+		return ""
+	}
+	sessionFile := filepath.Join(config.GetTargetsDir(), fmt.Sprintf("kitty-%s.session", winID))
+	return readTrimmedKittyTarget(sessionFile)
+}
+
+// SetKittyWindowSession asocia un ID de sesión a una ventana de Kitty.
+func SetKittyWindowSession(winID, sessionID string) error {
+	if winID == "" || strings.TrimSpace(sessionID) == "" {
+		return nil
+	}
+	targetsDir := config.GetTargetsDir()
+	if err := os.MkdirAll(targetsDir, 0755); err != nil {
+		return err
+	}
+	sessionFile := filepath.Join(targetsDir, fmt.Sprintf("kitty-%s.session", winID))
+	return os.WriteFile(sessionFile, []byte(strings.TrimSpace(sessionID)), 0644)
+}
+
+// ClearKittyWindowSession elimina la asociación de sesión de una ventana de Kitty.
+func ClearKittyWindowSession(winID string) error {
+	if winID == "" {
+		return nil
+	}
+	sessionFile := filepath.Join(config.GetTargetsDir(), fmt.Sprintf("kitty-%s.session", winID))
+	if err := os.Remove(sessionFile); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // ResolveTarget resuelve el Vault activo con aislamiento jerárquico:
 // 1. Target de sesión específica: si se proporciona sessionID, consultar primero su target.
 // 2. Target en Tmux: si estamos en Tmux, consultar exclusivamente variable de panel/ventana.
@@ -112,8 +160,7 @@ func ResolveTarget(sessionID, paneOrWinID string) string {
 			winID = os.Getenv("KITTY_WINDOW_ID")
 		}
 		if winID != "" {
-			winTargetFile := filepath.Join(config.GetTargetsDir(), fmt.Sprintf("kitty-%s", winID))
-			return readTrimmedKittyTarget(winTargetFile)
+			return GetKittyWindowTarget(winID)
 		}
 		return ""
 	}

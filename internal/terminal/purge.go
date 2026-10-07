@@ -94,6 +94,11 @@ func PurgeStaleTargets() int {
 				if tabIDs != nil {
 					_, alive = tabIDs[id]
 				}
+			} else if strings.HasSuffix(name, ".session") {
+				id := strings.TrimSuffix(strings.TrimPrefix(name, "kitty-"), ".session")
+				if windowIDs != nil {
+					_, alive = windowIDs[id]
+				}
 			} else {
 				id := strings.TrimPrefix(name, "kitty-")
 				if windowIDs != nil {
@@ -110,9 +115,15 @@ func PurgeStaleTargets() int {
 	return purged
 }
 
-// getKittyActiveIDs consulta `kitty @ ls` y retorna los IDs de ventanas y pestañas activas.
-// Retorna (nil, nil) si la consulta falla.
+var kittyActiveIDsProvider = getKittyActiveIDsReal
+
 func getKittyActiveIDs() (windowIDs map[string]struct{}, tabIDs map[string]struct{}) {
+	return kittyActiveIDsProvider()
+}
+
+// getKittyActiveIDsReal consulta `kitty @ ls` y retorna los IDs de ventanas y pestañas activas.
+// Retorna (nil, nil) si la consulta falla.
+func getKittyActiveIDsReal() (windowIDs map[string]struct{}, tabIDs map[string]struct{}) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 

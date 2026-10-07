@@ -2,13 +2,13 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
 
 	"obsitracer/internal/config"
-	"obsitracer/internal/differ"
 	"obsitracer/internal/formatter"
 	"obsitracer/internal/mailbox"
 	"obsitracer/internal/scanner"
@@ -51,8 +51,20 @@ var hookCmd = &cobra.Command{
 		}
 		invocationNum := hookInput.InvocationNum
 
-		if invocationNum <= 1 {
+		if invocationNum == 1 {
 			terminal.PurgeStaleTargets()
+		}
+
+		if terminal.IsInsideKitty() {
+			winID := os.Getenv("KITTY_WINDOW_ID")
+			if winID != "" && conversationID != "" {
+				_ = terminal.SetKittyWindowSession(winID, conversationID)
+				if terminal.GetSessionTarget(conversationID) == "" {
+					if kittyTarget := terminal.GetKittyWindowTarget(winID); kittyTarget != "" {
+						_ = terminal.SetSessionTarget(conversationID, kittyTarget)
+					}
+				}
+			}
 		}
 
 		var targetVault string
@@ -83,7 +95,11 @@ var hookCmd = &cobra.Command{
 
 		manifestFile := filepath.Join(vaultDir, "manifest.json")
 		crudFile := filepath.Join(vaultDir, "crud.json")
-		sessionFile := filepath.Join(vaultDir, "session_state.json")
+		sessionFileName := "session_state.json"
+		if conversationID != "" {
+			sessionFileName = fmt.Sprintf("session_state_%s.json", terminal.CleanSessionID(conversationID))
+		}
+		sessionFile := filepath.Join(vaultDir, sessionFileName)
 
 		sessionData, hasSession := mailbox.LoadSessionState(sessionFile)
 		lastConvID := sessionData.ConversationID
@@ -103,16 +119,14 @@ var hookCmd = &cobra.Command{
 				terminal.PurgeStaleTargets()
 			}
 
-			// Escaneo de árbol y diff estructural
+			// Actualiza el manifest como línea base (t=0) silenciosamente y drena el historial offline
 			currentTree := scanner.ScanDirtree(vaultPath)
-			prevTree, isFirstRun := mailbox.LoadManifest(manifestFile)
-			diff := differ.CalculateStructuralDiff(currentTree, prevTree, isFirstRun)
+			mailbox.SaveManifest(manifestFile, currentTree)
 			_, iaBlocks := mailbox.DrainCRUDMailbox(crudFile)
 
-			mailbox.SaveManifest(manifestFile, currentTree)
 			mailbox.SaveSessionState(sessionFile, conversationID, currentFocusSig)
 
-			msg := formatter.FormatSessionStart(targetVault, focusInfo, diff, iaBlocks)
+			msg := formatter.FormatSessionStart(targetVault, focusInfo, iaBlocks)
 			outputPayload(msg)
 			return
 		}
@@ -141,5 +155,10 @@ var hookCmd = &cobra.Command{
 }
 
 func init() {
+	hookCmd.PreRun = func(cmd *cobra.Command, args []string) {
+		if !cmd.Flags().Changed("session") {
+			hookSessionID = ""
+		}
+	}
 	hookCmd.Flags().StringVarP(&hookSessionID, "session", "s", "", "ID de sesión opcional para resolución de target")
 }

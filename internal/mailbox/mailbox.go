@@ -80,11 +80,13 @@ func GetVaultFocus(vaultDir string) (string, config.FocusInfo) {
 }
 
 type crudJSON struct {
-	Changes  []map[string]any `json:"changes"`
-	IABlocks []map[string]any `json:"ia_blocks"`
+	TS       string                    `json:"ts"`
+	Vault    string                    `json:"vault"`
+	Changes  []config.FileChangeEvent `json:"changes"`
+	IABlocks []map[string]any         `json:"ia_blocks"`
 }
 
-func DrainCRUDMailbox(crudFile string) ([]map[string]any, []map[string]any) {
+func DrainCRUDMailbox(crudFile string) ([]config.FileChangeEvent, []map[string]any) {
 	data, ok := ReadJSONSafe[crudJSON](crudFile)
 	if !ok {
 		return nil, nil
@@ -94,13 +96,33 @@ func DrainCRUDMailbox(crudFile string) ([]map[string]any, []map[string]any) {
 	iaBlocks := data.IABlocks
 
 	if len(changes) > 0 || len(iaBlocks) > 0 {
+		ts := data.TS
+		if ts == "" {
+			ts = time.Now().UTC().Format(time.RFC3339Nano)
+		}
 		_ = AtomicWriteJSON(crudFile, crudJSON{
-			Changes:  []map[string]any{},
+			TS:       ts,
+			Vault:    data.Vault,
+			Changes:  []config.FileChangeEvent{},
 			IABlocks: []map[string]any{},
 		})
 	}
 
 	return changes, iaBlocks
+}
+
+func ResetCRUDMailbox(crudFile, vaultPath string) {
+	if vaultPath == "" {
+		if data, ok := ReadJSONSafe[crudJSON](crudFile); ok && data.Vault != "" {
+			vaultPath = data.Vault
+		}
+	}
+	_ = AtomicWriteJSON(crudFile, crudJSON{
+		TS:       time.Now().UTC().Format(time.RFC3339Nano),
+		Vault:    vaultPath,
+		Changes:  []config.FileChangeEvent{},
+		IABlocks: []map[string]any{},
+	})
 }
 
 type manifestJSON struct {

@@ -28,6 +28,15 @@ func applySelectTarget(selectedName string) {
 		return
 	}
 	_ = terminal.SetTarget(selectPaneID, selectedName)
+	paneOrWinID := selectPaneID
+	if paneOrWinID == "" && terminal.IsInsideKitty() {
+		paneOrWinID = os.Getenv("KITTY_WINDOW_ID")
+	}
+	if paneOrWinID != "" {
+		if sessionID := terminal.GetKittyWindowSession(paneOrWinID); sessionID != "" {
+			_ = terminal.SetSessionTarget(sessionID, selectedName)
+		}
+	}
 	if selectTabID != "" {
 		_ = terminal.SetTabTarget(selectTabID, selectedName)
 	}
@@ -36,14 +45,27 @@ func applySelectTarget(selectedName string) {
 			w := strings.TrimSpace(wid)
 			if w != "" {
 				_ = terminal.SetTarget(w, selectedName)
+				if sessionID := terminal.GetKittyWindowSession(w); sessionID != "" {
+					_ = terminal.SetSessionTarget(sessionID, selectedName)
+				}
 			}
 		}
 	}
+	resetVaultTelemetry(selectedName)
 	terminal.DisplayMessage(selectPaneID, fmt.Sprintf("Obsitracer: Foco sintonizado a [%s]", selectedName))
 }
 
 func clearSelectTarget() {
 	_ = terminal.ClearTarget(selectPaneID)
+	paneOrWinID := selectPaneID
+	if paneOrWinID == "" && terminal.IsInsideKitty() {
+		paneOrWinID = os.Getenv("KITTY_WINDOW_ID")
+	}
+	if paneOrWinID != "" {
+		if sessionID := terminal.GetKittyWindowSession(paneOrWinID); sessionID != "" {
+			_ = terminal.ClearSessionTarget(sessionID)
+		}
+	}
 	if selectTabID != "" {
 		_ = terminal.ClearTabTarget(selectTabID)
 	}
@@ -52,6 +74,9 @@ func clearSelectTarget() {
 			w := strings.TrimSpace(wid)
 			if w != "" {
 				_ = terminal.ClearTarget(w)
+				if sessionID := terminal.GetKittyWindowSession(w); sessionID != "" {
+					_ = terminal.ClearSessionTarget(sessionID)
+				}
 			}
 		}
 	}
@@ -216,6 +241,17 @@ func runHuhSelect(vaults []config.VaultEntry, currentTarget, currentTargetDispla
 }
 
 func init() {
+	selectCmd.PreRun = func(cmd *cobra.Command, args []string) {
+		if !cmd.Flags().Changed("pane") {
+			selectPaneID = ""
+		}
+		if !cmd.Flags().Changed("tab") {
+			selectTabID = ""
+		}
+		if !cmd.Flags().Changed("windows") {
+			selectWindowIDs = ""
+		}
+	}
 	selectCmd.Flags().StringVarP(&selectPaneID, "pane", "p", "", "ID del panel de Tmux o ventana de Kitty")
 	selectCmd.Flags().StringVarP(&selectTabID, "tab", "t", "", "ID de la pestaña de Kitty")
 	selectCmd.Flags().StringVar(&selectWindowIDs, "windows", "", "Lista de IDs de ventanas en la pestaña (separadas por coma)")
