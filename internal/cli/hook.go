@@ -38,19 +38,32 @@ func outputPayload(message string) {
 	_ = json.NewEncoder(os.Stdout).Encode(payload)
 }
 
+var hookSessionID string
+
 var hookCmd = &cobra.Command{
 	Use:   "hook",
-	Short: "Ejecuta el hook PreInvocation de Antigravity (consumido automáticamente por AGY)",
+	Short: "Ejecuta el hook PreInvocation de Antigravity y Pi Coding Agent",
 	Run: func(cmd *cobra.Command, args []string) {
 		hookInput := parseHookStdin()
 		conversationID := hookInput.ConversationID
+		if conversationID == "" && hookSessionID != "" {
+			conversationID = hookSessionID
+		}
 		invocationNum := hookInput.InvocationNum
 
 		if invocationNum <= 1 {
 			terminal.PurgeStaleTargets()
 		}
 
-		targetVault := terminal.GetTarget("")
+		var targetVault string
+		if hookInput.TargetVault != "" {
+			targetVault = hookInput.TargetVault
+		} else if conversationID != "" {
+			targetVault = terminal.ResolveTarget(conversationID, "")
+		} else {
+			targetVault = terminal.GetTarget("")
+		}
+
 		if targetVault == "" {
 			outputPayload("")
 			return
@@ -125,4 +138,8 @@ var hookCmd = &cobra.Command{
 		msg := formatter.FormatLiveDelta(targetVault, focusToReport, changes, iaBlocks)
 		outputPayload(msg)
 	},
+}
+
+func init() {
+	hookCmd.Flags().StringVarP(&hookSessionID, "session", "s", "", "ID de sesión opcional para resolución de target")
 }

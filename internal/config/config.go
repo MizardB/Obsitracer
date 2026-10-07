@@ -99,6 +99,7 @@ func (d StructuralDiff) TotalCount() int {
 type HookInput struct {
 	ConversationID string `json:"conversationId"`
 	InvocationNum  int    `json:"invocationNum"`
+	TargetVault    string `json:"targetVault,omitempty"`
 }
 
 type InjectStep struct {

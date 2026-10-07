@@ -304,23 +304,35 @@ func runInstallerTUI() {
 	notifyStep("Plugin de Tmux", "(Keybindings Alt+o y widget para tmux-ukiyo configurados)", true)
 
 	// -------------------------------------------------------------------------
-	// ETAPA 4: Despliegue de Hook, Regla Sensorial y CLI Global
+	// ETAPA 4: Despliegue de Hook, Regla Sensorial, Pi Extension y CLI Global
 	// -------------------------------------------------------------------------
 	agyPluginDir := filepath.Join(home, ".gemini", "antigravity-cli", "plugins", "obsitracer")
 	geminiPluginDir := filepath.Join(home, ".gemini", "config", "plugins", "obsitracer")
 	localBinDir := filepath.Join(home, ".local", "bin")
+	piExtDir := filepath.Join(home, ".pi", "agent", "extensions")
 
+	var piConfigured bool
 	_ = spinner.New().
-		Title("Vinculando Hook PreInvocation, Regla Sensorial y CLI Global...").
+		Title("Vinculando Hook PreInvocation, Regla Sensorial, Pi Extension y CLI Global...").
 		Action(func() {
 			_ = os.MkdirAll(filepath.Dir(agyPluginDir), 0755)
 			_ = os.MkdirAll(filepath.Dir(geminiPluginDir), 0755)
 			_ = os.MkdirAll(localBinDir, 0755)
+			_ = os.MkdirAll(piExtDir, 0755)
 
 			_ = os.Remove(agyPluginDir)
 			_ = os.Remove(geminiPluginDir)
 			_ = os.Symlink(filepath.Join(repoDir, "plugins", "obsitracer"), agyPluginDir)
 			_ = os.Symlink(filepath.Join(repoDir, "plugins", "obsitracer"), geminiPluginDir)
+
+			// Desplegar extensión de Pi Coding Agent
+			piSource := filepath.Join(repoDir, "extensions", "pi", "obsitracer.ts")
+			piDest := filepath.Join(piExtDir, "obsitracer.ts")
+			if _, err := os.Stat(piSource); err == nil {
+				_ = os.Remove(piDest)
+				_ = os.Symlink(piSource, piDest)
+				piConfigured = true
+			}
 
 			// Asegurar symlinks de binarios
 			cliBinPath := filepath.Join(repoDir, "bin", "obsitracer")
@@ -359,6 +371,9 @@ func runInstallerTUI() {
 		Run()
 
 	notifyStep("Antigravity Plugin", "(Hook PreInvocation y Regla Sensorial Always-On registrados)", true)
+	if piConfigured {
+		notifyStep("Pi Coding Agent", "(Extensión ~/.pi/agent/extensions/obsitracer.ts vinculada)", true)
+	}
 	notifyStep("CLI Global", "(Symlink ~/.local/bin/obsitracer creado en PATH)", true)
 
 	// -------------------------------------------------------------------------
@@ -434,11 +449,12 @@ func runInstallerTUI() {
 	// -------------------------------------------------------------------------
 	// RESUMEN FINAL
 	// -------------------------------------------------------------------------
-	summary := fmt.Sprintf("%s\n\n%s\n  • %s %s\n  • %s %s\n  • %s %s\n  • %s %s\n\n%s\n  • %s Registrados y activos: %d vaults",
+	summary := fmt.Sprintf("%s\n\n%s\n  • %s %s\n  • %s %s\n  • %s %s\n  • %s %s\n  • %s %s\n\n%s\n  • %s Registrados y activos: %d vaults",
 		successStyle.Render("🎉 ¡Obsitracer está 100% operativo y sincronizado!"),
-		titleStyle.Render("Atajos de Teclado:"),
-		lipgloss.NewStyle().Bold(true).Render("Alt + o"), dimStyle.Render("➔ Selector interactivo en Tmux"),
-		lipgloss.NewStyle().Bold(true).Render("Ctrl+a ➔ o"), dimStyle.Render("➔ Selector alternativo con prefijo"),
+		titleStyle.Render("Atajos de Teclado y Comandos:"),
+		lipgloss.NewStyle().Bold(true).Render("Alt + o"), dimStyle.Render("➔ Selector interactivo en Tmux / Kitty / Pi Agent"),
+		lipgloss.NewStyle().Bold(true).Render("/vault"), dimStyle.Render("➔ Comando interactivo en Pi Coding Agent"),
+		lipgloss.NewStyle().Bold(true).Render("Ctrl+a ➔ o"), dimStyle.Render("➔ Selector alternativo con prefijo en Tmux"),
 		lipgloss.NewStyle().Bold(true).Render("obsitracer"), dimStyle.Render("➔ CLI para gestionar foco, target y estado"),
 		lipgloss.NewStyle().Bold(true).Render("trap EXIT"), dimStyle.Render("➔ Limpieza automática de targets al cerrar Kitty (zsh/bash)"),
 		titleStyle.Render("Vaults Configurados:"),

@@ -39,4 +39,5 @@ func init() {
 	rootCmd.AddCommand(widgetCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(purgeCmd)
+	rootCmd.AddCommand(vaultsCmd)
 }

@@ -54,3 +54,52 @@ func TestHookCommandEmptyStdin(t *testing.T) {
 		t.Fatalf("Error ejecutando hook: %v", err)
 	}
 }
+
+func TestSessionTargetCLI(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "obsitracer-cli-session-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", tempDir)
+
+	sessionID := "test-session-pi"
+
+	// 1. Set session target
+	b := bytes.NewBufferString("")
+	rootCmd.SetOut(b)
+	rootCmd.SetArgs([]string{"target", "--session", sessionID, "Cortex"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("Error setting session target: %v", err)
+	}
+
+	// 2. Query session target (raw)
+	b.Reset()
+	rootCmd.SetOut(b)
+	rootCmd.SetArgs([]string{"target", "--session", sessionID, "--raw"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("Error querying session target raw: %v", err)
+	}
+
+	// 3. Clear session target
+	b.Reset()
+	rootCmd.SetOut(b)
+	rootCmd.SetArgs([]string{"clear", "--session", sessionID})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("Error clearing session target: %v", err)
+	}
+}
+
+func TestVaultsCommand(t *testing.T) {
+	b := bytes.NewBufferString("")
+	rootCmd.SetOut(b)
+	rootCmd.SetArgs([]string{"vaults", "--help"})
+
+	err := rootCmd.Execute()
+	if err != nil {
+		t.Fatalf("Error ejecutando vaults --help: %v", err)
+	}
+}

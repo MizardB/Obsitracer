@@ -189,3 +189,87 @@ func TestPurgeStaleTargetsFromOlderSession(t *testing.T) {
 	}
 }
 
+func TestSessionTargetCRUD(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "obsitracer-session-crud-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", tempDir)
+
+	sessionID := "/home/manu/.pi/agent/sessions/test-session-123.jsonl"
+
+	// 1. Inicialmente sin target
+	if got := GetSessionTarget(sessionID); got != "" {
+		t.Fatalf("Expected empty target, got: %s", got)
+	}
+
+	// 2. Establecer target de sesión
+	if err := SetSessionTarget(sessionID, "Cortex"); err != nil {
+		t.Fatalf("SetSessionTarget failed: %v", err)
+	}
+
+	// 3. Verificar que se lee correctamente
+	if got := GetSessionTarget(sessionID); got != "Cortex" {
+		t.Fatalf("Expected Cortex, got: %s", got)
+	}
+
+	// 4. Limpiar target de sesión
+	if err := ClearSessionTarget(sessionID); err != nil {
+		t.Fatalf("ClearSessionTarget failed: %v", err)
+	}
+
+	if got := GetSessionTarget(sessionID); got != "" {
+		t.Fatalf("Expected empty target after clear, got: %s", got)
+	}
+}
+
+func TestSessionTargetPrecedence(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "obsitracer-session-prec-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", tempDir)
+
+	origKittyID := os.Getenv("KITTY_WINDOW_ID")
+	defer os.Setenv("KITTY_WINDOW_ID", origKittyID)
+
+	// Simular entorno Kitty con ventana 10 sintonizada a "KittyVault"
+	os.Setenv("KITTY_WINDOW_ID", "10")
+	_ = os.MkdirAll(config.GetTargetsDir(), 0755)
+	winFile := filepath.Join(config.GetTargetsDir(), "kitty-10")
+	_ = os.WriteFile(winFile, []byte("KittyVault"), 0644)
+
+	// Caso A: Sin session target configurado -> cae al target de Kitty
+	sessionA := "session-without-target"
+	if got := ResolveTarget(sessionA, ""); got != "KittyVault" {
+		t.Fatalf("Expected fallback to KittyVault, got: %s", got)
+	}
+
+	// Caso B: Con session target configurado -> tiene precedencia sobre Kitty
+	sessionB := "session-with-target"
+	if err := SetSessionTarget(sessionB, "PiSessionVault"); err != nil {
+		t.Fatalf("SetSessionTarget failed: %v", err)
+	}
+
+	if got := ResolveTarget(sessionB, ""); got != "PiSessionVault" {
+		t.Fatalf("Expected PiSessionVault precedence over Kitty, got: %s", got)
+	}
+
+	// Caso C: Al limpiar el session target -> vuelve a caer al target de Kitty
+	if err := ClearSessionTarget(sessionB); err != nil {
+		t.Fatalf("ClearSessionTarget failed: %v", err)
+	}
+
+	if got := ResolveTarget(sessionB, ""); got != "KittyVault" {
+		t.Fatalf("Expected fallback to KittyVault after clear, got: %s", got)
+	}
+}
+

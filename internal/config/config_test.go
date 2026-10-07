@@ -44,3 +44,17 @@ func TestStructuralDiff(t *testing.T) {
 		t.Errorf("expected count 2, got %d", count)
 	}
 }
+
+func TestHookInput(t *testing.T) {
+	input := config.HookInput{
+		ConversationID: "conv-123",
+		InvocationNum:  1,
+		TargetVault:    "Cortex",
+	}
+	if input.ConversationID != "conv-123" {
+		t.Errorf("expected conv-123, got %s", input.ConversationID)
+	}
+	if input.TargetVault != "Cortex" {
+		t.Errorf("expected Cortex, got %s", input.TargetVault)
+	}
+}

@@ -35,17 +35,77 @@ func GetTerminalType() string {
 	return "standalone"
 }
 
-// GetTarget resuelve el Vault activo con aislamiento estricto por terminal:
-// 1. Target en Tmux: sólo retorna si el panel/ventana está sintonizado. Silencio ("") por defecto.
-// 2. Target en Kitty: sólo retorna si la ventana específica está sintonizada. Silencio ("") por defecto.
-// 3. Fallback a target global persistido: SÓLO en modo standalone (sin multiplexor).
-func GetTarget(paneOrWinID string) string {
-	// 1. Si estamos dentro de Tmux, consultar exclusivamente variable de panel/ventana
+func cleanSessionID(sessionID string) string {
+	base := filepath.Base(sessionID)
+	base = strings.TrimSuffix(base, filepath.Ext(base))
+	var b strings.Builder
+	for _, r := range base {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	cleaned := strings.Trim(b.String(), "-")
+	if cleaned == "" {
+		cleaned = "default"
+	}
+	return cleaned
+}
+
+// GetSessionTarget obtiene el target configurado para una sesión específica (ej. Pi Coding Agent).
+func GetSessionTarget(sessionID string) string {
+	if strings.TrimSpace(sessionID) == "" {
+		return ""
+	}
+	sessionFile := filepath.Join(config.GetTargetsDir(), fmt.Sprintf("session-%s", cleanSessionID(sessionID)))
+	return readTrimmedFile(sessionFile)
+}
+
+// SetSessionTarget persiste el target para una sesión específica.
+func SetSessionTarget(sessionID, target string) error {
+	if strings.TrimSpace(sessionID) == "" {
+		return fmt.Errorf("session ID no puede estar vacío")
+	}
+	targetsDir := config.GetTargetsDir()
+	if err := os.MkdirAll(targetsDir, 0755); err != nil {
+		return err
+	}
+	sessionFile := filepath.Join(targetsDir, fmt.Sprintf("session-%s", cleanSessionID(sessionID)))
+	return os.WriteFile(sessionFile, []byte(strings.TrimSpace(target)), 0644)
+}
+
+// ClearSessionTarget elimina el target de una sesión específica.
+func ClearSessionTarget(sessionID string) error {
+	if strings.TrimSpace(sessionID) == "" {
+		return nil
+	}
+	sessionFile := filepath.Join(config.GetTargetsDir(), fmt.Sprintf("session-%s", cleanSessionID(sessionID)))
+	if err := os.Remove(sessionFile); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// ResolveTarget resuelve el Vault activo con aislamiento jerárquico:
+// 1. Target de sesión específica: si se proporciona sessionID, consultar primero su target.
+// 2. Target en Tmux: si estamos en Tmux, consultar exclusivamente variable de panel/ventana.
+// 3. Target en Kitty: si estamos en Kitty, consultar exclusivamente buzón de ventana específica.
+// 4. Fallback a target global persistido: SÓLO en modo standalone (sin multiplexor).
+func ResolveTarget(sessionID, paneOrWinID string) string {
+	// 1. Si se proporciona sessionID, consultar primero el target de sesión
+	if sessionID != "" {
+		if st := GetSessionTarget(sessionID); st != "" {
+			return st
+		}
+	}
+
+	// 2. Si estamos dentro de Tmux, consultar exclusivamente variable de panel/ventana
 	if IsInsideTmux() {
 		return tmux.GetTmuxTarget(paneOrWinID)
 	}
 
-	// 2. Si estamos en Kitty, consultar exclusivamente buzón de ventana específica
+	// 3. Si estamos en Kitty, consultar exclusivamente buzón de ventana específica
 	if IsInsideKitty() {
 		winID := paneOrWinID
 		if winID == "" {
@@ -58,8 +118,13 @@ func GetTarget(paneOrWinID string) string {
 		return ""
 	}
 
-	// 3. Fallback a target global persistido sólo en modo standalone
+	// 4. Fallback a target global persistido sólo en modo standalone
 	return readTrimmedFile(config.GetCurrentTargetPath())
+}
+
+// GetTarget resuelve el Vault activo en el entorno actual (Kitty / Tmux / standalone).
+func GetTarget(paneOrWinID string) string {
+	return ResolveTarget("", paneOrWinID)
 }
 
 // SetTarget establece el Vault activo tanto a nivel global como en el entorno terminal específico.
