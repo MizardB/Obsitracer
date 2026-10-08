@@ -224,6 +224,7 @@ export default class Obsitracer extends Plugin {
 	private activeWidgetCount = 0;
 	private crudWatcherTimer: NodeJS.Timeout | null = null;
 	private lastWidgetSentTime = 0;
+	private lastHumanInputTime = 0;
 
 	async onload() {
 		console.log('Cargando Obsitracer plugin (Multi-Vault)...');
@@ -272,8 +273,16 @@ export default class Obsitracer extends Plugin {
 			setTimeout(updateCursor, 100);
 		};
 
-		this.registerDomEvent(document, 'mousedown', scheduleUpdate);
-		this.registerDomEvent(document, 'keyup', scheduleUpdate);
+		const onHumanInput = () => {
+			this.lastHumanInputTime = Date.now();
+			scheduleUpdate();
+		};
+
+		this.registerDomEvent(document, 'keydown', () => {
+			this.lastHumanInputTime = Date.now();
+		});
+		this.registerDomEvent(document, 'keyup', onHumanInput);
+		this.registerDomEvent(document, 'mousedown', onHumanInput);
 		this.registerDomEvent(window, 'focus', scheduleUpdate);
 		this.registerDomEvent(document.body, 'mouseenter', scheduleUpdate);
 
@@ -331,6 +340,11 @@ export default class Obsitracer extends Plugin {
 					const pos = editor.getCursor();
 					this.activeFocus = { file: view.file.path, line: pos.line + 1, ch: pos.ch };
 					this.scheduleFocusUpdate();
+
+					const isHuman = document.hasFocus() && (Date.now() - this.lastHumanInputTime < 1000);
+					if (isHuman && view.file instanceof TFile) {
+						this.handleEditorChange(editor, view.file);
+					}
 				}
 			})
 		);
@@ -352,10 +366,22 @@ export default class Obsitracer extends Plugin {
 
 		// CRUD tracking
 		this.registerEvent(this.app.vault.on('create', (file: TAbstractFile) => this.handleCrud('created', file)));
-		this.registerEvent(this.app.vault.on('modify', (file: TAbstractFile) => this.handleCrud('modified', file)));
+		this.registerEvent(
+			this.app.vault.on('modify', async (file: TAbstractFile) => {
+				if (this.shouldIgnore(file.path)) return;
+				if (!(file instanceof TFile)) return;
+				try {
+					const content = await this.app.vault.cachedRead(file);
+					this.fileSnapshots.set(file.path, content);
+				} catch (_) {}
+			})
+		);
 		this.registerEvent(this.app.vault.on('delete', (file: TAbstractFile) => this.handleCrud('deleted', file)));
 		this.registerEvent(this.app.vault.on('rename', (file: TAbstractFile, oldPath: string) => {
-			this.pendingChanges.set(oldPath, { op: 'deleted', path: oldPath, ts: Math.floor(Date.now() / 1000) });
+			const isHuman = document.hasFocus() && (Date.now() - this.lastHumanInputTime < 2000);
+			if (isHuman) {
+				this.pendingChanges.set(oldPath, { op: 'deleted', path: oldPath, ts: Math.floor(Date.now() / 1000) });
+			}
 			const oldContent = this.fileSnapshots.get(oldPath);
 			this.fileSnapshots.delete(oldPath);
 			if (oldContent !== undefined && file instanceof TFile) {
@@ -471,6 +497,39 @@ export default class Obsitracer extends Plugin {
 		return diff;
 	}
 
+	private handleEditorChange(editor: Editor, file: TFile) {
+		if (this.shouldIgnore(file.path)) return;
+		if (!document.hasFocus() || (Date.now() - this.lastHumanInputTime >= 1000)) return;
+
+		try {
+			const content = editor.getValue();
+			const excerpt = content.length > 300 ? content.substring(0, 300) + '...' : content;
+			this.extractIABlocks(file, content);
+
+			let diff: string[] | undefined = undefined;
+			if (this.fileSnapshots.has(file.path)) {
+				const prevContent = this.fileSnapshots.get(file.path)!;
+				diff = this.calculateMicroDiff(prevContent, content);
+			}
+
+			const changeItem: any = {
+				op: 'modified',
+				path: file.path,
+				excerpt,
+				ts: Math.floor(Date.now() / 1000),
+				_latestContent: content
+			};
+			if (diff && diff.length > 0) {
+				changeItem.diff = diff;
+			}
+
+			this.pendingChanges.set(file.path, changeItem);
+			this.scheduleCrudUpdate();
+		} catch (e) {
+			console.error('Error handling editor change:', e);
+		}
+	}
+
 	private async handleCrud(op: string, abstractFile: TAbstractFile) {
 		if (this.shouldIgnore(abstractFile.path)) return;
 		if (!(abstractFile instanceof TFile)) return;
@@ -485,6 +544,9 @@ export default class Obsitracer extends Plugin {
 				this.fileSnapshots.set(file.path, content);
 			} catch(e) {}
 
+			const isHuman = document.hasFocus() && (Date.now() - this.lastHumanInputTime < 2000);
+			if (!isHuman) return;
+
 			this.pendingChanges.set(file.path, {
 				op,
 				path: file.path,
@@ -497,6 +559,10 @@ export default class Obsitracer extends Plugin {
 
 		if (op === 'deleted') {
 			this.fileSnapshots.delete(file.path);
+
+			const isHuman = document.hasFocus() && (Date.now() - this.lastHumanInputTime < 2000);
+			if (!isHuman) return;
+
 			this.pendingChanges.set(file.path, {
 				op,
 				path: file.path,
@@ -504,34 +570,6 @@ export default class Obsitracer extends Plugin {
 			});
 			this.scheduleCrudUpdate();
 			return;
-		}
-
-		if (op === 'modified') {
-			try {
-				const content = await this.app.vault.cachedRead(file);
-				excerpt = content.length > 300 ? content.substring(0, 300) + '...' : content;
-				this.extractIABlocks(file, content);
-
-				let diff: string[] | undefined = undefined;
-				if (this.fileSnapshots.has(file.path)) {
-					const prevContent = this.fileSnapshots.get(file.path)!;
-					diff = this.calculateMicroDiff(prevContent, content);
-				}
-
-				const changeItem: any = {
-					op,
-					path: file.path,
-					excerpt,
-					ts: Math.floor(Date.now() / 1000),
-					_latestContent: content
-				};
-				if (diff && diff.length > 0) {
-					changeItem.diff = diff;
-				}
-
-				this.pendingChanges.set(file.path, changeItem);
-				this.scheduleCrudUpdate();
-			} catch(e) {}
 		}
 	}
 

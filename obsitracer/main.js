@@ -219,6 +219,7 @@ var Obsitracer = class extends import_obsidian.Plugin {
     this.activeWidgetCount = 0;
     this.crudWatcherTimer = null;
     this.lastWidgetSentTime = 0;
+    this.lastHumanInputTime = 0;
   }
   async onload() {
     console.log("Cargando Obsitracer plugin (Multi-Vault)...");
@@ -252,8 +253,15 @@ var Obsitracer = class extends import_obsidian.Plugin {
     const scheduleUpdate = () => {
       setTimeout(updateCursor, 100);
     };
-    this.registerDomEvent(document, "mousedown", scheduleUpdate);
-    this.registerDomEvent(document, "keyup", scheduleUpdate);
+    const onHumanInput = () => {
+      this.lastHumanInputTime = Date.now();
+      scheduleUpdate();
+    };
+    this.registerDomEvent(document, "keydown", () => {
+      this.lastHumanInputTime = Date.now();
+    });
+    this.registerDomEvent(document, "keyup", onHumanInput);
+    this.registerDomEvent(document, "mousedown", onHumanInput);
     this.registerDomEvent(window, "focus", scheduleUpdate);
     this.registerDomEvent(document.body, "mouseenter", scheduleUpdate);
     this.registerDomEvent(document, "visibilitychange", () => {
@@ -298,6 +306,10 @@ var Obsitracer = class extends import_obsidian.Plugin {
           const pos = editor.getCursor();
           this.activeFocus = { file: view.file.path, line: pos.line + 1, ch: pos.ch };
           this.scheduleFocusUpdate();
+          const isHuman = document.hasFocus() && Date.now() - this.lastHumanInputTime < 1e3;
+          if (isHuman && view.file instanceof import_obsidian.TFile) {
+            this.handleEditorChange(editor, view.file);
+          }
         }
       })
     );
@@ -317,10 +329,23 @@ var Obsitracer = class extends import_obsidian.Plugin {
       })
     );
     this.registerEvent(this.app.vault.on("create", (file) => this.handleCrud("created", file)));
-    this.registerEvent(this.app.vault.on("modify", (file) => this.handleCrud("modified", file)));
+    this.registerEvent(
+      this.app.vault.on("modify", async (file) => {
+        if (this.shouldIgnore(file.path)) return;
+        if (!(file instanceof import_obsidian.TFile)) return;
+        try {
+          const content = await this.app.vault.cachedRead(file);
+          this.fileSnapshots.set(file.path, content);
+        } catch (_) {
+        }
+      })
+    );
     this.registerEvent(this.app.vault.on("delete", (file) => this.handleCrud("deleted", file)));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
-      this.pendingChanges.set(oldPath, { op: "deleted", path: oldPath, ts: Math.floor(Date.now() / 1e3) });
+      const isHuman = document.hasFocus() && Date.now() - this.lastHumanInputTime < 2e3;
+      if (isHuman) {
+        this.pendingChanges.set(oldPath, { op: "deleted", path: oldPath, ts: Math.floor(Date.now() / 1e3) });
+      }
       const oldContent = this.fileSnapshots.get(oldPath);
       this.fileSnapshots.delete(oldPath);
       if (oldContent !== void 0 && file instanceof import_obsidian.TFile) {
@@ -421,6 +446,34 @@ var Obsitracer = class extends import_obsidian.Plugin {
     }
     return diff;
   }
+  handleEditorChange(editor, file) {
+    if (this.shouldIgnore(file.path)) return;
+    if (!document.hasFocus() || Date.now() - this.lastHumanInputTime >= 1e3) return;
+    try {
+      const content = editor.getValue();
+      const excerpt = content.length > 300 ? content.substring(0, 300) + "..." : content;
+      this.extractIABlocks(file, content);
+      let diff = void 0;
+      if (this.fileSnapshots.has(file.path)) {
+        const prevContent = this.fileSnapshots.get(file.path);
+        diff = this.calculateMicroDiff(prevContent, content);
+      }
+      const changeItem = {
+        op: "modified",
+        path: file.path,
+        excerpt,
+        ts: Math.floor(Date.now() / 1e3),
+        _latestContent: content
+      };
+      if (diff && diff.length > 0) {
+        changeItem.diff = diff;
+      }
+      this.pendingChanges.set(file.path, changeItem);
+      this.scheduleCrudUpdate();
+    } catch (e) {
+      console.error("Error handling editor change:", e);
+    }
+  }
   async handleCrud(op, abstractFile) {
     if (this.shouldIgnore(abstractFile.path)) return;
     if (!(abstractFile instanceof import_obsidian.TFile)) return;
@@ -433,6 +486,8 @@ var Obsitracer = class extends import_obsidian.Plugin {
         this.fileSnapshots.set(file.path, content);
       } catch (e) {
       }
+      const isHuman = document.hasFocus() && Date.now() - this.lastHumanInputTime < 2e3;
+      if (!isHuman) return;
       this.pendingChanges.set(file.path, {
         op,
         path: file.path,
@@ -444,6 +499,8 @@ var Obsitracer = class extends import_obsidian.Plugin {
     }
     if (op === "deleted") {
       this.fileSnapshots.delete(file.path);
+      const isHuman = document.hasFocus() && Date.now() - this.lastHumanInputTime < 2e3;
+      if (!isHuman) return;
       this.pendingChanges.set(file.path, {
         op,
         path: file.path,
@@ -451,31 +508,6 @@ var Obsitracer = class extends import_obsidian.Plugin {
       });
       this.scheduleCrudUpdate();
       return;
-    }
-    if (op === "modified") {
-      try {
-        const content = await this.app.vault.cachedRead(file);
-        excerpt = content.length > 300 ? content.substring(0, 300) + "..." : content;
-        this.extractIABlocks(file, content);
-        let diff = void 0;
-        if (this.fileSnapshots.has(file.path)) {
-          const prevContent = this.fileSnapshots.get(file.path);
-          diff = this.calculateMicroDiff(prevContent, content);
-        }
-        const changeItem = {
-          op,
-          path: file.path,
-          excerpt,
-          ts: Math.floor(Date.now() / 1e3),
-          _latestContent: content
-        };
-        if (diff && diff.length > 0) {
-          changeItem.diff = diff;
-        }
-        this.pendingChanges.set(file.path, changeItem);
-        this.scheduleCrudUpdate();
-      } catch (e) {
-      }
     }
   }
   extractIABlocks(file, content) {
