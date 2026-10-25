@@ -5,6 +5,7 @@ import { exec } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { Producer } from '../extensions/pi/capture.mjs';
 
 function escapeHtml(text: string): string {
 	return text
@@ -212,6 +213,16 @@ class IAPromptModal extends Modal {
 }
 
 export default class Obsitracer extends Plugin {
+	private captureProducer: Producer;
+	private publishMetadata(event?: any) {
+		try { this.captureProducer?.tick(event); } catch (error) { console.error('Obsitracer capture unavailable', error); }
+	}
+	private metadataCrud(op: string, file: TAbstractFile, oldPath?: string) {
+		if (!(file instanceof TFile)) return;
+		const visible = (p: string) => !p.split('/').some(part => part.startsWith('.'));
+		if (!visible(file.path) && !(oldPath && visible(oldPath))) return;
+		this.publishMetadata({ op, path:file.path, oldPath, at:Date.now() });
+	}
 	private focusDebounceTimer: NodeJS.Timeout | null = null;
 	private crudDebounceTimer: NodeJS.Timeout | null = null;
 	private focusPath: string;
@@ -232,6 +243,8 @@ export default class Obsitracer extends Plugin {
 		this.vaultName = this.app.vault.getName();
 		const baseDir = path.join(os.homedir(), '.config', 'obsitracer');
 		const vaultDir = path.join(baseDir, 'vaults', this.vaultName);
+		this.captureProducer = new Producer(baseDir, this.vaultName);
+		this.registerInterval(window.setInterval(() => this.publishMetadata(), 2000));
 		
 		this.focusPath = path.join(vaultDir, 'focus.json');
 		this.crudMailboxPath = path.join(vaultDir, 'crud.json');
@@ -265,6 +278,8 @@ export default class Obsitracer extends Plugin {
 				this.activeFocus = { file: activeFile.path, line, ch };
 			}
 
+			if (!activeFile) this.activeFocus = null;
+			this.publishMetadata({ kind:'focus', ...this.activeFocus, at:Date.now() });
 			// Always flush vault identity, even without an active file
 			this.scheduleFocusUpdate();
 		};
@@ -339,6 +354,7 @@ export default class Obsitracer extends Plugin {
 					this.cacheSnapshot(view.file);
 					const pos = editor.getCursor();
 					this.activeFocus = { file: view.file.path, line: pos.line + 1, ch: pos.ch };
+					this.publishMetadata({ kind:'focus', ...this.activeFocus, at:Date.now() });
 					this.scheduleFocusUpdate();
 
 					const isHuman = document.hasFocus() && (Date.now() - this.lastHumanInputTime < 1000);
@@ -363,6 +379,12 @@ export default class Obsitracer extends Plugin {
 				}
 			})
 		);
+
+		// Independent metadata channel: all filesystem authors, no note reads or shared drain.
+		this.registerEvent(this.app.vault.on('create', file => this.metadataCrud('created', file)));
+		this.registerEvent(this.app.vault.on('modify', file => this.metadataCrud('modified', file)));
+		this.registerEvent(this.app.vault.on('delete', file => this.metadataCrud('deleted', file)));
+		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => this.metadataCrud('renamed', file, oldPath)));
 
 		// CRUD tracking
 		this.registerEvent(this.app.vault.on('create', (file: TAbstractFile) => this.handleCrud('created', file)));
@@ -404,6 +426,7 @@ export default class Obsitracer extends Plugin {
 
 	onunload() {
 		console.log('Descargando Obsitracer plugin...');
+		this.captureProducer?.close();
 		if (this.focusDebounceTimer) clearTimeout(this.focusDebounceTimer);
 		if (this.crudDebounceTimer) clearTimeout(this.crudDebounceTimer);
 		this.clearAllWidgets();

@@ -40,9 +40,128 @@ var import_obsidian = require("obsidian");
 var import_state = require("@codemirror/state");
 var import_view = require("@codemirror/view");
 var import_child_process = require("child_process");
-var fs = __toESM(require("fs"));
+var fs2 = __toESM(require("fs"));
 var os = __toESM(require("os"));
-var path = __toESM(require("path"));
+var path2 = __toESM(require("path"));
+
+// ../extensions/pi/capture.mjs
+var import_node_fs = __toESM(require("node:fs"), 1);
+var import_node_path = __toESM(require("node:path"), 1);
+var import_node_crypto = require("node:crypto");
+var LIMIT = 128;
+function atomic(file, value) {
+  import_node_fs.default.mkdirSync(import_node_path.default.dirname(file), { recursive: true, mode: 448 });
+  const tmp = `${file}.${(0, import_node_crypto.randomUUID)()}.tmp`;
+  try {
+    import_node_fs.default.writeFileSync(tmp, JSON.stringify(value), { mode: 384 });
+    import_node_fs.default.renameSync(tmp, file);
+  } finally {
+    try {
+      import_node_fs.default.unlinkSync(tmp);
+    } catch (e) {
+    }
+  }
+}
+function read(file) {
+  try {
+    if (import_node_fs.default.statSync(file).size > 2097152) return;
+    return JSON.parse(import_node_fs.default.readFileSync(file, "utf8"));
+  } catch (e) {
+  }
+}
+var validPath = (p) => typeof p === "string" && p.length > 0 && Buffer.byteLength(p, "utf8") <= 1024 && !p.startsWith("/") && !p.split("/").includes("..") && !/[\x00-\x1f\x7f]/.test(p);
+var idOK = (id) => /^[a-f0-9-]{36}$/.test(id);
+var remove = (file) => {
+  try {
+    import_node_fs.default.unlinkSync(file);
+  } catch (e) {
+  }
+};
+var Producer = class {
+  constructor(base, vault, { now = Date.now } = {}) {
+    this.dir = import_node_path.default.join(base, "captures-v1");
+    this.vault = vault;
+    this.now = now;
+    this.epoch = (0, import_node_crypto.randomUUID)();
+    this.started = now();
+    this.states = /* @__PURE__ */ new Map();
+  }
+  leases() {
+    let names;
+    try {
+      names = import_node_fs.default.readdirSync(this.dir);
+    } catch (e) {
+      return [];
+    }
+    const active = [];
+    for (const name of names) {
+      if (name.endsWith(".state.json") && idOK(name.slice(0, -11)) && !import_node_fs.default.existsSync(import_node_path.default.join(this.dir, `${name.slice(0, -11)}.lease.json`))) remove(import_node_path.default.join(this.dir, name));
+      if (!name.endsWith(".lease.json") || !idOK(name.slice(0, -11))) continue;
+      const id = name.slice(0, -11), lease = read(import_node_path.default.join(this.dir, name));
+      if (!lease || !Number.isFinite(lease.expires) || lease.expires <= this.now()) {
+        remove(import_node_path.default.join(this.dir, name));
+        remove(import_node_path.default.join(this.dir, `${id}.state.json`));
+        this.states.delete(id);
+        continue;
+      }
+      if (lease.version !== 1 || lease.vault !== this.vault || !Number.isFinite(lease.start) || lease.start > this.now()) continue;
+      active.push([id, lease]);
+    }
+    return active.sort(([a], [b]) => a.localeCompare(b)).slice(0, 32);
+  }
+  tick(event) {
+    var _a;
+    const live = /* @__PURE__ */ new Set();
+    for (const [id, lease] of this.leases()) {
+      live.add(id);
+      let s = this.states.get(id);
+      if (!s) {
+        s = { version: 1, capture: id, epoch: this.epoch, producer_start: this.started, start: lease.start, revision: 0, overflow: false, files: /* @__PURE__ */ Object.create(null), focus: null };
+        this.states.set(id, s);
+      }
+      if (event && event.at >= lease.start) {
+        if (event.op && (!validPath(event.path) || event.op === "renamed" && !validPath(event.oldPath)) || event.file && !validPath(event.file)) s.loss = true;
+        if (event.kind === "focus") {
+          s.focus = validPath(event.file) ? { file: event.file, line: Math.max(1, Math.trunc(event.line) || 1), ch: Math.max(0, Math.trunc(event.ch) || 0), at: event.at } : null;
+        } else if (["created", "modified", "deleted", "renamed"].includes(event.op) && validPath(event.path)) {
+          s.revision++;
+          const paths = event.op === "renamed" && validPath(event.oldPath) ? [event.oldPath, event.path] : [event.path];
+          for (const p of paths) {
+            if (!Object.hasOwn(s.files, p) && Object.keys(s.files).length >= LIMIT) {
+              s.overflow = true;
+              continue;
+            }
+            const prev = s.files[p];
+            s.files[p] = {
+              path: p,
+              op: event.op,
+              revision: ((prev == null ? void 0 : prev.revision) || 0) + 1,
+              first: (_a = prev == null ? void 0 : prev.first) != null ? _a : event.at,
+              last: event.at,
+              ...event.op === "renamed" && validPath(event.oldPath) ? { from: event.oldPath, to: event.path } : (prev == null ? void 0 : prev.from) ? { from: prev.from, to: prev.to } : {}
+            };
+          }
+        }
+      }
+      s.updated = this.now();
+      try {
+        atomic(import_node_path.default.join(this.dir, `${id}.state.json`), s);
+      } catch (e) {
+        s.loss = true;
+      }
+    }
+    for (const id of this.states.keys()) if (!live.has(id)) {
+      this.states.delete(id);
+      remove(import_node_path.default.join(this.dir, `${id}.state.json`));
+    }
+  }
+  close() {
+    for (const [id, s] of this.states) atomic(import_node_path.default.join(this.dir, `${id}.state.json`), { ...s, disconnected: true, updated: this.now() });
+    this.states.clear();
+  }
+};
+
+// main.ts
 function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
@@ -221,13 +340,29 @@ var Obsitracer = class extends import_obsidian.Plugin {
     this.lastWidgetSentTime = 0;
     this.lastHumanInputTime = 0;
   }
+  publishMetadata(event) {
+    var _a;
+    try {
+      (_a = this.captureProducer) == null ? void 0 : _a.tick(event);
+    } catch (error) {
+      console.error("Obsitracer capture unavailable", error);
+    }
+  }
+  metadataCrud(op, file, oldPath) {
+    if (!(file instanceof import_obsidian.TFile)) return;
+    const visible = (p) => !p.split("/").some((part) => part.startsWith("."));
+    if (!visible(file.path) && !(oldPath && visible(oldPath))) return;
+    this.publishMetadata({ op, path: file.path, oldPath, at: Date.now() });
+  }
   async onload() {
     console.log("Cargando Obsitracer plugin (Multi-Vault)...");
     this.vaultName = this.app.vault.getName();
-    const baseDir = path.join(os.homedir(), ".config", "obsitracer");
-    const vaultDir = path.join(baseDir, "vaults", this.vaultName);
-    this.focusPath = path.join(vaultDir, "focus.json");
-    this.crudMailboxPath = path.join(vaultDir, "crud.json");
+    const baseDir = path2.join(os.homedir(), ".config", "obsitracer");
+    const vaultDir = path2.join(baseDir, "vaults", this.vaultName);
+    this.captureProducer = new Producer(baseDir, this.vaultName);
+    this.registerInterval(window.setInterval(() => this.publishMetadata(), 2e3));
+    this.focusPath = path2.join(vaultDir, "focus.json");
+    this.crudMailboxPath = path2.join(vaultDir, "crud.json");
     this.registerVaultToList();
     this.registerEditorExtension(iaWidgetField);
     const initialFile = this.app.workspace.getActiveFile();
@@ -248,6 +383,8 @@ var Obsitracer = class extends import_obsidian.Plugin {
         }
         this.activeFocus = { file: activeFile.path, line, ch };
       }
+      if (!activeFile) this.activeFocus = null;
+      this.publishMetadata({ kind: "focus", ...this.activeFocus, at: Date.now() });
       this.scheduleFocusUpdate();
     };
     const scheduleUpdate = () => {
@@ -305,6 +442,7 @@ var Obsitracer = class extends import_obsidian.Plugin {
           this.cacheSnapshot(view.file);
           const pos = editor.getCursor();
           this.activeFocus = { file: view.file.path, line: pos.line + 1, ch: pos.ch };
+          this.publishMetadata({ kind: "focus", ...this.activeFocus, at: Date.now() });
           this.scheduleFocusUpdate();
           const isHuman = document.hasFocus() && Date.now() - this.lastHumanInputTime < 1e3;
           if (isHuman && view.file instanceof import_obsidian.TFile) {
@@ -328,6 +466,10 @@ var Obsitracer = class extends import_obsidian.Plugin {
         }
       })
     );
+    this.registerEvent(this.app.vault.on("create", (file) => this.metadataCrud("created", file)));
+    this.registerEvent(this.app.vault.on("modify", (file) => this.metadataCrud("modified", file)));
+    this.registerEvent(this.app.vault.on("delete", (file) => this.metadataCrud("deleted", file)));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => this.metadataCrud("renamed", file, oldPath)));
     this.registerEvent(this.app.vault.on("create", (file) => this.handleCrud("created", file)));
     this.registerEvent(
       this.app.vault.on("modify", async (file) => {
@@ -365,7 +507,9 @@ var Obsitracer = class extends import_obsidian.Plugin {
     });
   }
   onunload() {
+    var _a;
     console.log("Descargando Obsitracer plugin...");
+    (_a = this.captureProducer) == null ? void 0 : _a.close();
     if (this.focusDebounceTimer) clearTimeout(this.focusDebounceTimer);
     if (this.crudDebounceTimer) clearTimeout(this.crudDebounceTimer);
     this.clearAllWidgets();
@@ -550,7 +694,7 @@ var Obsitracer = class extends import_obsidian.Plugin {
   shouldIgnore(filePath) {
     const parts = filePath.split("/");
     if (parts.includes(".obsidian") || parts.includes(".git") || parts.includes(".trash")) return true;
-    const base = path.basename(filePath);
+    const base = path2.basename(filePath);
     if (base.startsWith(".") || base.endsWith("~") || base.endsWith(".tmp")) return true;
     if (!base.endsWith(".md")) return true;
     return false;
@@ -572,8 +716,8 @@ var Obsitracer = class extends import_obsidian.Plugin {
         vaultPath: this.app.vault.adapter.basePath || "",
         focus: this.activeFocus
       };
-      fs.mkdirSync(path.dirname(this.focusPath), { recursive: true });
-      fs.writeFileSync(this.focusPath, JSON.stringify(payload, null, 2), "utf8");
+      fs2.mkdirSync(path2.dirname(this.focusPath), { recursive: true });
+      fs2.writeFileSync(this.focusPath, JSON.stringify(payload, null, 2), "utf8");
       const label = `\u{1F4CD} ${this.vaultName}/${this.activeFocus.file}`;
       try {
         (0, import_child_process.exec)(`tmux set -gq @obsitracer "${label}" && tmux refresh-client -S`, { timeout: 200 }, () => {
@@ -591,9 +735,9 @@ var Obsitracer = class extends import_obsidian.Plugin {
         this.crudDebounceTimer = null;
       }
       let data = { ts: (/* @__PURE__ */ new Date()).toISOString(), vault: "", changes: [], ia_blocks: [] };
-      if (fs.existsSync(this.crudMailboxPath)) {
+      if (fs2.existsSync(this.crudMailboxPath)) {
         try {
-          data = JSON.parse(fs.readFileSync(this.crudMailboxPath, "utf8"));
+          data = JSON.parse(fs2.readFileSync(this.crudMailboxPath, "utf8"));
         } catch (e) {
         }
       }
@@ -615,8 +759,8 @@ var Obsitracer = class extends import_obsidian.Plugin {
         changes: mergedChanges,
         ia_blocks: mergedBlocks
       };
-      fs.mkdirSync(path.dirname(this.crudMailboxPath), { recursive: true });
-      fs.writeFileSync(this.crudMailboxPath, JSON.stringify(payload, null, 2), "utf8");
+      fs2.mkdirSync(path2.dirname(this.crudMailboxPath), { recursive: true });
+      fs2.writeFileSync(this.crudMailboxPath, JSON.stringify(payload, null, 2), "utf8");
       this.pendingChanges.clear();
       this.pendingIABlocks = [];
     } catch (err) {
@@ -625,17 +769,17 @@ var Obsitracer = class extends import_obsidian.Plugin {
   }
   registerVaultToList() {
     try {
-      const baseDir = path.join(os.homedir(), ".config", "obsitracer");
-      const listPath = path.join(baseDir, "vaults.json");
+      const baseDir = path2.join(os.homedir(), ".config", "obsitracer");
+      const listPath = path2.join(baseDir, "vaults.json");
       const vaultPath = this.app.vault.adapter.basePath || "";
       let list = [];
-      if (fs.existsSync(listPath)) {
+      if (fs2.existsSync(listPath)) {
         try {
-          list = JSON.parse(fs.readFileSync(listPath, "utf8"));
+          list = JSON.parse(fs2.readFileSync(listPath, "utf8"));
         } catch (e) {
         }
       }
-      list = list.filter((v) => fs.existsSync(v.path));
+      list = list.filter((v) => fs2.existsSync(v.path));
       const indexByPath = list.findIndex((v) => v.path === vaultPath);
       const indexByName = list.findIndex((v) => v.name === this.vaultName);
       let changed = false;
@@ -653,8 +797,8 @@ var Obsitracer = class extends import_obsidian.Plugin {
         list.push({ name: this.vaultName, path: vaultPath });
         changed = true;
       }
-      fs.mkdirSync(baseDir, { recursive: true });
-      fs.writeFileSync(listPath, JSON.stringify(list, null, 2), "utf8");
+      fs2.mkdirSync(baseDir, { recursive: true });
+      fs2.writeFileSync(listPath, JSON.stringify(list, null, 2), "utf8");
     } catch (e) {
       console.error("Error registrando vault en la lista global:", e);
     }
@@ -704,8 +848,8 @@ var Obsitracer = class extends import_obsidian.Plugin {
       return;
     }
     try {
-      if (!fs.existsSync(this.crudMailboxPath)) return;
-      const raw = fs.readFileSync(this.crudMailboxPath, "utf8");
+      if (!fs2.existsSync(this.crudMailboxPath)) return;
+      const raw = fs2.readFileSync(this.crudMailboxPath, "utf8");
       const data = JSON.parse(raw);
       if (this.pendingIABlocks.length === 0 && (!data.ia_blocks || data.ia_blocks.length === 0)) {
         this.clearAllWidgets();
