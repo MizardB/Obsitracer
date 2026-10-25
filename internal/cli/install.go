@@ -191,7 +191,7 @@ func runInstallerTUI() {
 		Title("Verificando y empaquetando plugin de Obsidian con esbuild...").
 		Action(func() {
 			if _, err := exec.LookPath("esbuild"); err == nil {
-				tsCmd := exec.Command("esbuild", "main.ts", "--bundle", "--platform=node", "--external:obsidian", "--external:electron", "--format=cjs", "--target=es2018", "--outfile=main.js")
+				tsCmd := exec.Command("esbuild", "main.ts", "--bundle", "--platform=node", "--external:obsidian", "--external:electron", "--external:@codemirror/*", "--external:@lezer/*", "--format=cjs", "--target=es2018", "--outfile=main.js")
 				tsCmd.Dir = filepath.Join(repoDir, "obsitracer")
 				if err := tsCmd.Run(); err == nil {
 					tsBuilt = true
