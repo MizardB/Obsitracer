@@ -219,64 +219,12 @@ func runInstallerTUI() {
 	}
 
 	// -------------------------------------------------------------------------
-	// ETAPA 3: Integración de Terminal (Kitty / Tmux)
+	// ETAPA 3: Integración de Tmux
 	// -------------------------------------------------------------------------
-	var kittyConfigured bool
-	kittyDir := filepath.Join(home, ".config", "kitty")
-	kittyConfPath := filepath.Join(kittyDir, "kitty.conf")
-	kittyModulesDir := filepath.Join(kittyDir, "modules")
-
 	_ = spinner.New().
-		Title("Configurando plugins de terminal (Kitty & Tmux)...").
+		Title("Configurando plugin de Tmux...").
 		Action(func() {
-			// 1. Integración con Kitty (Módulo y Widget Tab Bar)
-			if _, err := os.Stat(kittyDir); err == nil {
-				// Desplegar módulo de keybindings/config
-				if _, err := os.Stat(kittyModulesDir); err == nil {
-					modDest := filepath.Join(kittyModulesDir, "obsitracer.conf")
-					_ = os.Remove(modDest)
-					_ = os.Symlink(filepath.Join(repoDir, "kitty", "obsitracer.conf"), modDest)
-				} else {
-					pluginsDir := filepath.Join(kittyDir, "plugins")
-					_ = os.MkdirAll(pluginsDir, 0755)
-					modDest := filepath.Join(pluginsDir, "obsitracer.conf")
-					_ = os.Remove(modDest)
-					_ = os.Symlink(filepath.Join(repoDir, "kitty", "obsitracer.conf"), modDest)
-				}
-
-				// Desplegar widget en tab_bar.py
-				tabBarDest := filepath.Join(kittyDir, "tab_bar.py")
-				_ = os.Remove(tabBarDest)
-				_ = os.Symlink(filepath.Join(repoDir, "kitty", "tab_bar.py"), tabBarDest)
-
-				// Desplegar kitten obsitracer_select.py para popup tab-wide
-				kittenDest := filepath.Join(kittyDir, "obsitracer_select.py")
-				_ = os.Remove(kittenDest)
-				_ = os.Symlink(filepath.Join(repoDir, "kitty", "obsitracer_select.py"), kittenDest)
-
-				// Registrar include en kitty.conf de forma limpia y declarativa
-				if confRaw, err := os.ReadFile(kittyConfPath); err == nil {
-					confStr := string(confRaw)
-					if !strings.Contains(confStr, "obsitracer.conf") {
-						includeLine := "include modules/obsitracer.conf\n"
-						if strings.Contains(confStr, "include modules/keybindings.conf") {
-							newConf := strings.Replace(confStr, "include modules/keybindings.conf\n", "include modules/keybindings.conf\n"+includeLine, 1)
-							_ = os.WriteFile(kittyConfPath, []byte(newConf), 0644)
-						} else {
-							f, err := os.OpenFile(kittyConfPath, os.O_APPEND|os.O_WRONLY, 0644)
-							if err == nil {
-								_, _ = f.WriteString("\n# --- Obsitracer Plugin ---\n" + includeLine)
-								_ = f.Close()
-							}
-						}
-					}
-				}
-
-				kittyConfigured = true
-				_ = exec.Command("kitty", "@", "load-config").Run()
-			}
-
-			// 2. Integración con Tmux
+			// Integración con Tmux
 			tmuxPluginDir := filepath.Join(home, ".tmux", "plugins", "obsitracer")
 			_ = os.MkdirAll(filepath.Join(tmuxPluginDir, "scripts"), 0755)
 			_ = os.Remove(filepath.Join(tmuxPluginDir, "obsitracer.tmux"))
@@ -298,9 +246,6 @@ func runInstallerTUI() {
 		}).
 		Run()
 
-	if kittyConfigured {
-		notifyStep("Integración Kitty", "(Overlay interactivo Alt+o vinculado y activo)", true)
-	}
 	notifyStep("Plugin de Tmux", "(Keybindings Alt+o y widget para tmux-ukiyo configurados)", true)
 
 	// -------------------------------------------------------------------------
@@ -406,57 +351,15 @@ func runInstallerTUI() {
 	notifyStep("Obsidian Vaults", fmt.Sprintf("(%d vaults vinculados e indexados en vaults.json)", len(selectedVaults)), true)
 
 	// -------------------------------------------------------------------------
-	// ETAPA 6: Inyección de shell trap para limpieza al cerrar terminal
-	// -------------------------------------------------------------------------
-	var shellsPatched []string
-	_ = spinner.New().
-		Title("Configurando trap de limpieza en shell (zsh/bash)...").
-		Action(func() {
-			trapBlock := `
-# --- Obsitracer: limpiar foco al cerrar terminal ---
-[[ -n "$KITTY_WINDOW_ID" ]] && trap 'obsitracer clear 2>/dev/null' EXIT
-`
-			marker := "obsitracer clear 2>/dev/null"
-			for _, rcFile := range []string{
-				filepath.Join(home, ".zshrc"),
-				filepath.Join(home, ".bashrc"),
-			} {
-				data, err := os.ReadFile(rcFile)
-				if err != nil {
-					continue // no existe ese rc file
-				}
-				if strings.Contains(string(data), marker) {
-					shellsPatched = append(shellsPatched, filepath.Base(rcFile)+" (ya configurado)")
-					continue
-				}
-				f, err := os.OpenFile(rcFile, os.O_APPEND|os.O_WRONLY, 0644)
-				if err != nil {
-					continue
-				}
-				_, _ = f.WriteString(trapBlock)
-				_ = f.Close()
-				shellsPatched = append(shellsPatched, filepath.Base(rcFile))
-			}
-		}).
-		Run()
-
-	if len(shellsPatched) > 0 {
-		notifyStep("Shell Trap", fmt.Sprintf("(trap EXIT inyectado en: %s)", strings.Join(shellsPatched, ", ")), true)
-	} else {
-		notifyStep("Shell Trap", "(ningún rc file encontrado o ya configurado)", false)
-	}
-
-	// -------------------------------------------------------------------------
 	// RESUMEN FINAL
 	// -------------------------------------------------------------------------
-	summary := fmt.Sprintf("%s\n\n%s\n  • %s %s\n  • %s %s\n  • %s %s\n  • %s %s\n  • %s %s\n\n%s\n  • %s Registrados y activos: %d vaults",
+	summary := fmt.Sprintf("%s\n\n%s\n  • %s %s\n  • %s %s\n  • %s %s\n  • %s %s\n\n%s\n  • %s Registrados y activos: %d vaults",
 		successStyle.Render("🎉 ¡Obsitracer está 100% operativo y sincronizado!"),
 		titleStyle.Render("Atajos de Teclado y Comandos:"),
-		lipgloss.NewStyle().Bold(true).Render("Alt + o"), dimStyle.Render("➔ Selector interactivo en Tmux / Kitty / Pi Agent"),
+		lipgloss.NewStyle().Bold(true).Render("Alt + o"), dimStyle.Render("➔ Selector interactivo en Tmux / Pi Agent"),
 		lipgloss.NewStyle().Bold(true).Render("/vault"), dimStyle.Render("➔ Comando interactivo en Pi Coding Agent"),
 		lipgloss.NewStyle().Bold(true).Render("Ctrl+a ➔ o"), dimStyle.Render("➔ Selector alternativo con prefijo en Tmux"),
 		lipgloss.NewStyle().Bold(true).Render("obsitracer"), dimStyle.Render("➔ CLI para gestionar foco, target y estado"),
-		lipgloss.NewStyle().Bold(true).Render("trap EXIT"), dimStyle.Render("➔ Limpieza automática de targets al cerrar Kitty (zsh/bash)"),
 		titleStyle.Render("Vaults Configurados:"),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#9ece6a")).Render("✔"), len(selectedVaults),
 	)
