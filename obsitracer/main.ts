@@ -221,6 +221,7 @@ export default class Obsitracer extends Plugin {
 		if (!(file instanceof TFile)) return;
 		const visible = (p: string) => !p.split('/').some(part => part.startsWith('.'));
 		if (!visible(file.path) && !(oldPath && visible(oldPath))) return;
+		if (op === 'deleted' && this.activeFocus?.file === file.path) this.activeFocus = null;
 		this.publishMetadata({ op, path:file.path, oldPath, at:Date.now() });
 	}
 	private focusDebounceTimer: NodeJS.Timeout | null = null;
@@ -283,6 +284,11 @@ export default class Obsitracer extends Plugin {
 			// Always flush vault identity, even without an active file
 			this.scheduleFocusUpdate();
 		};
+
+		// Seed the producer even when Obsidian is already in the background.
+		// Layout readiness also covers startup before the active leaf is restored.
+		updateCursor();
+		this.app.workspace.onLayoutReady(updateCursor);
 
 		const scheduleUpdate = () => {
 			setTimeout(updateCursor, 100);
@@ -365,19 +371,7 @@ export default class Obsitracer extends Plugin {
 			})
 		);
 		this.registerEvent(
-			this.app.workspace.on('file-open', (file: TFile | null) => {
-				if (file) {
-					this.cacheSnapshot(file);
-					const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-					if (view && view.editor) {
-						const pos = view.editor.getCursor();
-						this.activeFocus = { file: file.path, line: pos.line + 1, ch: pos.ch };
-					} else {
-						this.activeFocus = { file: file.path, line: 1, ch: 0 };
-					}
-					this.scheduleFocusUpdate();
-				}
-			})
+			this.app.workspace.on('file-open', () => updateCursor())
 		);
 
 		// Independent metadata channel: all filesystem authors, no note reads or shared drain.

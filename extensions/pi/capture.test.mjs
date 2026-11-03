@@ -28,6 +28,48 @@ test('producer fanout/cutoff, bounded metadata, revisions, lease expiry and orph
  fs.unlinkSync(path.join(dir,`${a}.lease.json`)); p.tick(); assert.equal(state(a),undefined);
  advance(LEASE_MS+1); p.tick(); assert.equal(state(b),undefined); assert.equal(fs.existsSync(path.join(dir,`${b}.lease.json`)),false);
 });
+test('late subscriptions receive current focus, not historical CRUD or a new timestamp',t=>{
+ const {p,lease,state,now,advance}=fixture(t);
+ const observed=now();
+ p.tick({kind:'focus',file:'note.md',line:7,ch:3,at:observed});
+ p.tick({op:'modified',path:'note.md',at:observed});
+ advance(1000);
+ const a=lease(); p.tick();
+ assert.deepEqual(state(a).focus,{file:'note.md',line:7,ch:3,at:observed});
+ assert.deepEqual(state(a).files,{}); assert.equal(state(a).revision,0);
+ advance(1000); const b=lease(); p.tick();
+ assert.deepEqual(state(b).focus,state(a).focus);
+ assert.equal(state(b).updated,now());
+ p.tick({op:'modified',path:'fresh.md',at:now()});
+ assert.equal(state(a).files['fresh.md'].revision,1);
+ assert.equal(state(b).files['fresh.md'].revision,1);
+});
+test('null, invalid, deleted and renamed focus remain current across lease boundaries',t=>{
+ const {p,lease,state,now,advance}=fixture(t);
+ const a=lease(); p.tick(); assert.equal(state(a).focus,null);
+ for (const clear of [{kind:'focus',file:null}, {kind:'focus',file:'../bad.md'}, {op:'deleted',path:'note.md'}]) {
+  p.tick({kind:'focus',file:'note.md',at:now()});
+  p.tick({...clear,at:now()});
+  advance(1); const b=lease(); p.tick();
+  assert.equal(state(a).focus,null); assert.equal(state(b).focus,null);
+  assert.deepEqual(state(b).files,{});
+ }
+ p.tick({kind:'focus',file:'note.md',line:4,ch:2,at:now()});
+ advance(1); const renamedAt=now();
+ p.tick({op:'renamed',oldPath:'note.md',path:'new.md',at:renamedAt});
+ advance(1); const c=lease(); p.tick();
+ assert.deepEqual(state(c).focus,{file:'new.md',line:4,ch:2,at:renamedAt});
+ assert.deepEqual(state(c).files,{});
+});
+test('focus snapshots stay isolated by producer vault and unsupported leases',t=>{
+ const {p,dir,lease,state,now}=fixture(t);
+ p.tick({kind:'focus',file:'private.md',at:now()});
+ const foreign=randomUUID();
+ atomic(path.join(dir,`${foreign}.lease.json`),{version:1,vault:'Other',start:now(),expires:now()+LEASE_MS});
+ const unsupported=lease(2), own=lease(); p.tick();
+ assert.equal(state(foreign),undefined); assert.equal(state(unsupported),undefined);
+ assert.equal(state(own).focus.file,'private.md');
+});
 test('producer admission, write failure isolation, loss and close',t=>{
  const {p,dir,lease,state,now}=fixture(t);
  const ids=Array.from({length:33},()=>lease()).sort();

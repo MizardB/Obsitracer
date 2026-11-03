@@ -19,6 +19,7 @@ export class Producer {
  constructor(base, vault, { now = Date.now } = {}) {
   this.dir = path.join(base, 'captures-v1'); this.vault = vault; this.now = now;
   this.epoch = randomUUID(); this.started = now(); this.states = new Map();
+  this.focus = null;
  }
  leases() {
   let names; try { names = fs.readdirSync(this.dir); } catch { return []; }
@@ -37,6 +38,15 @@ export class Producer {
   return active.sort(([a],[b]) => a.localeCompare(b)).slice(0,32);
  }
  tick(event) {
+  // Current focus is a snapshot, not capture-scoped CRUD history. Keep the
+  // observation time even when a later lease first receives this snapshot.
+  if (event?.kind === 'focus') {
+   this.focus = validPath(event.file) ? { file:event.file, line:Math.max(1,Math.trunc(event.line)||1), ch:Math.max(0,Math.trunc(event.ch)||0), at:event.at } : null;
+  } else if (this.focus && event?.op === 'deleted' && event.path === this.focus.file) {
+   this.focus = null;
+  } else if (this.focus && event?.op === 'renamed' && event.oldPath === this.focus.file) {
+   this.focus = validPath(event.path) ? { ...this.focus, file:event.path, at:event.at } : null;
+  }
   const live = new Set();
   for (const [id,lease] of this.leases()) {
    live.add(id);
@@ -44,9 +54,7 @@ export class Producer {
    if (!s) { s = { version:1, capture:id, epoch:this.epoch, producer_start:this.started, start:lease.start, revision:0, overflow:false, files:Object.create(null), focus:null }; this.states.set(id,s); }
    if (event && event.at >= lease.start) {
     if (event.op && (!validPath(event.path) || event.op === 'renamed' && !validPath(event.oldPath)) || event.file && !validPath(event.file)) s.loss = true;
-    if (event.kind === 'focus') {
-     s.focus = validPath(event.file) ? { file:event.file, line:Math.max(1,Math.trunc(event.line)||1), ch:Math.max(0,Math.trunc(event.ch)||0), at:event.at } : null;
-    } else if (['created','modified','deleted','renamed'].includes(event.op) && validPath(event.path)) {
+    if (event.kind !== 'focus' && ['created','modified','deleted','renamed'].includes(event.op) && validPath(event.path)) {
      s.revision++;
      const paths = event.op === 'renamed' && validPath(event.oldPath) ? [event.oldPath,event.path] : [event.path];
      for (const p of paths) {
@@ -57,6 +65,7 @@ export class Producer {
      }
     }
    }
+   s.focus = this.focus;
    s.updated = this.now();
    try { atomic(path.join(this.dir,`${id}.state.json`),s); } catch { s.loss = true; }
   }

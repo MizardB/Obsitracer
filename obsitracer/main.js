@@ -85,6 +85,7 @@ var Producer = class {
     this.epoch = (0, import_node_crypto.randomUUID)();
     this.started = now();
     this.states = /* @__PURE__ */ new Map();
+    this.focus = null;
   }
   leases() {
     let names;
@@ -111,6 +112,13 @@ var Producer = class {
   }
   tick(event) {
     var _a;
+    if ((event == null ? void 0 : event.kind) === "focus") {
+      this.focus = validPath(event.file) ? { file: event.file, line: Math.max(1, Math.trunc(event.line) || 1), ch: Math.max(0, Math.trunc(event.ch) || 0), at: event.at } : null;
+    } else if (this.focus && (event == null ? void 0 : event.op) === "deleted" && event.path === this.focus.file) {
+      this.focus = null;
+    } else if (this.focus && (event == null ? void 0 : event.op) === "renamed" && event.oldPath === this.focus.file) {
+      this.focus = validPath(event.path) ? { ...this.focus, file: event.path, at: event.at } : null;
+    }
     const live = /* @__PURE__ */ new Set();
     for (const [id, lease] of this.leases()) {
       live.add(id);
@@ -121,9 +129,7 @@ var Producer = class {
       }
       if (event && event.at >= lease.start) {
         if (event.op && (!validPath(event.path) || event.op === "renamed" && !validPath(event.oldPath)) || event.file && !validPath(event.file)) s.loss = true;
-        if (event.kind === "focus") {
-          s.focus = validPath(event.file) ? { file: event.file, line: Math.max(1, Math.trunc(event.line) || 1), ch: Math.max(0, Math.trunc(event.ch) || 0), at: event.at } : null;
-        } else if (["created", "modified", "deleted", "renamed"].includes(event.op) && validPath(event.path)) {
+        if (event.kind !== "focus" && ["created", "modified", "deleted", "renamed"].includes(event.op) && validPath(event.path)) {
           s.revision++;
           const paths = event.op === "renamed" && validPath(event.oldPath) ? [event.oldPath, event.path] : [event.path];
           for (const p of paths) {
@@ -143,6 +149,7 @@ var Producer = class {
           }
         }
       }
+      s.focus = this.focus;
       s.updated = this.now();
       try {
         atomic(import_node_path.default.join(this.dir, `${id}.state.json`), s);
@@ -349,9 +356,11 @@ var Obsitracer = class extends import_obsidian.Plugin {
     }
   }
   metadataCrud(op, file, oldPath) {
+    var _a;
     if (!(file instanceof import_obsidian.TFile)) return;
     const visible = (p) => !p.split("/").some((part) => part.startsWith("."));
     if (!visible(file.path) && !(oldPath && visible(oldPath))) return;
+    if (op === "deleted" && ((_a = this.activeFocus) == null ? void 0 : _a.file) === file.path) this.activeFocus = null;
     this.publishMetadata({ op, path: file.path, oldPath, at: Date.now() });
   }
   async onload() {
@@ -387,6 +396,8 @@ var Obsitracer = class extends import_obsidian.Plugin {
       this.publishMetadata({ kind: "focus", ...this.activeFocus, at: Date.now() });
       this.scheduleFocusUpdate();
     };
+    updateCursor();
+    this.app.workspace.onLayoutReady(updateCursor);
     const scheduleUpdate = () => {
       setTimeout(updateCursor, 100);
     };
@@ -452,19 +463,7 @@ var Obsitracer = class extends import_obsidian.Plugin {
       })
     );
     this.registerEvent(
-      this.app.workspace.on("file-open", (file) => {
-        if (file) {
-          this.cacheSnapshot(file);
-          const view = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
-          if (view && view.editor) {
-            const pos = view.editor.getCursor();
-            this.activeFocus = { file: file.path, line: pos.line + 1, ch: pos.ch };
-          } else {
-            this.activeFocus = { file: file.path, line: 1, ch: 0 };
-          }
-          this.scheduleFocusUpdate();
-        }
-      })
+      this.app.workspace.on("file-open", () => updateCursor())
     );
     this.registerEvent(this.app.vault.on("create", (file) => this.metadataCrud("created", file)));
     this.registerEvent(this.app.vault.on("modify", (file) => this.metadataCrud("modified", file)));
